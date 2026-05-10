@@ -1,5 +1,7 @@
 # Rust Web IDE
 
+[English](README.en.md) | 简体中文
+
 浏览器内 Rust 代码编辑与解释执行环境，零安装、零编译、即时运行。
 
 **[在线演示](https://itszzl-sudo.github.io/rust-wasm-web-ide/)**
@@ -121,6 +123,13 @@ npm run build
 - **GPU 执行优化**：利用 WebGPU 加速数值计算
 - **多线程代码分析**：通过多域名实现并行语法分析和类型检查
 - **代码调试**：断点、单步执行、变量查看
+
+## 架构
+
+本项目采用混合方案：
+
+- **即时执行**：syn 解释器（69KB Wasm）- 即时启动，约 60% 特性覆盖
+- **可选类型检查**：rust-analyzer（4MB 懒加载）- 完整类型推导
 
 ## 文档
 
