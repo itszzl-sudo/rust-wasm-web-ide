@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [vue()],
-  base: '/doc/',
+  base: '/rust-wasm-web-ide/',
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')
