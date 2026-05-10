@@ -4,7 +4,6 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [vue()],
-  base: '/doc/',
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')
@@ -12,8 +11,7 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
-    minify: 'esbuild',
-    outDir: 'docs'
+    minify: 'esbuild'
   },
   optimizeDeps: {
     include: ['monaco-editor'],
