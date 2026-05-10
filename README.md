@@ -2,6 +2,8 @@
 
 浏览器内 Rust 代码编辑与解释执行环境，零安装、零编译、即时运行。
 
+**[在线演示](https://itszzl-sudo.github.io/rust-wasm-web-ide/)**
+
 ## 特性
 
 - **浏览器内解释执行**：无需编译，直接在浏览器内解释执行 Rust 源码
@@ -101,13 +103,14 @@ npm run build
 - 逻辑运算（`&&`、`||`、`!`）
 - 控制流（`if`/`else`、`while`、`for`）
 - 函数定义（`fn`）
+- 结构体（`struct`）
+- 枚举（`enum`）
+- 模式匹配（`match`）
+- impl 块
 - `println!` 宏
 
 ### 计划支持
 
-- 结构体（`struct`）
-- 枚举（`enum`）
-- 模式匹配（`match`）
 - 闭包
 - 迭代器
 - 更多宏
