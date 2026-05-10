@@ -5,7 +5,6 @@ target/
 .DS_Store
 .vscode/
 .idea/
-*.wasm
 .env
 .env.local
 public/wasm/
