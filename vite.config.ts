@@ -7,13 +7,21 @@ export default defineConfig({
   base: '/rust-wasm-web-ide/',
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(__dirname, 'src'),
+      'monaco-editor': resolve(__dirname, 'node_modules/monaco-editor/esm/vs/editor')
     }
   },
   build: {
     target: 'esnext',
     minify: 'esbuild',
-    outDir: 'docs'
+    outDir: 'docs',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          monaco: ['monaco-editor']
+        }
+      }
+    }
   },
   optimizeDeps: {
     include: ['monaco-editor'],
