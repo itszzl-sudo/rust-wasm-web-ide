@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-const readline = require('readline')
+import readline from 'readline'
+import fs from 'fs'
+import path from 'path'
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -142,8 +144,6 @@ async function setupCloudflare(CF_TOKEN, ZONE_NAME, PROJECT_NAME) {
     
     // 5. 统计文件
     console.log('\n[5/5] 统计部署文件...')
-    const fs = require('fs')
-    const path = require('path')
     
     const docsDir = path.join(process.cwd(), 'docs')
     let fileCount = 0
