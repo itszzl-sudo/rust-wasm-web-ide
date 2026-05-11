@@ -35,6 +35,10 @@
         <span class="icon">⬇</span>
         <span class="text">下载</span>
       </button>
+      <button class="toolbar-btn compile-btn" @click="$emit('compile')" title="编译为WASM">
+        <span class="icon">⚙</span>
+        <span class="text">编译</span>
+      </button>
     </div>
     <div class="toolbar-right">
       <button class="lang-btn" @click="toggleLanguage" :title="locale === 'zh-CN' ? 'Switch to English' : '切换到中文'">
@@ -71,6 +75,7 @@ defineEmits<{
   (e: 'typeCheck'): void
   (e: 'parallelCheck'): void
   (e: 'download'): void
+  (e: 'compile'): void
 }>()
 
 const { t, locale } = useI18n()

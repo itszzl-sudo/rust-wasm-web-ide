@@ -11,6 +11,7 @@
         @typeCheck="handleTypeCheck"
         @parallelCheck="handleParallelCheck"
         @download="handleDownload"
+        @compile="handleCompile"
       />
     </div>
     <div class="content-container">
@@ -49,6 +50,7 @@ import { loadRustAnalyzer, typeCheck, isRustAnalyzerLoaded } from '@/utils/rustA
 import { gpuExecutor } from '@/utils/gpuExecutor'
 import { threadManager } from '@/utils/threadManager'
 import { parallelSyntaxCheck, parallelAnalyze, interpreterPool } from '@/utils/parallelInterpreter'
+import { compileRustToWasm, runCompiledWasm } from '@/utils/wasmCompiler'
 
 const editorRef = ref<InstanceType<typeof MonacoEditor>>()
 const logPanelRef = ref<InstanceType<typeof LogPanel>>()
@@ -202,6 +204,46 @@ const handleDownload = () => {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
   logPanelRef.value?.addLog('info', `已下载: ${filename}`)
+}
+
+const handleCompile = async () => {
+  logPanelRef.value?.addLog('info', '开始编译 Rust → WAT → WASM...')
+  
+  try {
+    const result = await compileRustToWasm(currentCode.value)
+    
+    if (result.success && result.wasm && result.wat) {
+      logPanelRef.value?.addLog('info', `✓ 编译成功!`)
+      logPanelRef.value?.addLog('info', `Rust: ${result.stats.rustLines} 行`)
+      logPanelRef.value?.addLog('info', `WAT: ${result.stats.watLines} 行`)
+      logPanelRef.value?.addLog('info', `WASM: ${result.stats.wasmBytes} 字节`)
+      logPanelRef.value?.addLog('info', `耗时: ${result.stats.compileTime.toFixed(0)}ms`)
+      
+      logPanelRef.value?.addLog('info', '\n--- WAT 代码 ---')
+      result.wat.split('\n').slice(0, 20).forEach(line => {
+        logPanelRef.value?.addLog('info', line)
+      })
+      if (result.wat.split('\n').length > 20) {
+        logPanelRef.value?.addLog('info', '...(省略)')
+      }
+      
+      const wasmBlob = new Blob([result.wasm], { type: 'application/wasm' })
+      const url = URL.createObjectURL(wasmBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'module.wasm'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      logPanelRef.value?.addLog('info', '✓ WASM 文件已下载')
+      
+    } else {
+      logPanelRef.value?.addLog('error', `✗ 编译失败: ${result.error}`)
+    }
+  } catch (e) {
+    logPanelRef.value?.addLog('error', `编译错误: ${(e as Error).message}`)
+  }
 }
 
 const handleFileSelect = (filename: string) => {
