@@ -111,50 +111,19 @@ async function setupCloudflare(CF_TOKEN, ZONE_ID, ZONE_NAME, PROJECT_NAME) {
       }
     }
     
-    // 3. 获取 Account ID
-    console.log('\n[3/4] 获取 Account ID...')
-    const accountsData = await fetchCF(CF_TOKEN, '/accounts')
-    const account = accountsData.result?.[0]
-    
-    if (!account) {
-      throw new Error('找不到 Account')
-    }
-    
-    const accountId = account.id
-    console.log(`✓ Account ID: ${accountId}`)
-    
-    // 4. 创建 Pages 项目
-    console.log('\n[4/4] 创建 Pages 项目...')
-    
-    try {
-      await fetchCF(CF_TOKEN, `/accounts/${accountId}/pages/projects/${PROJECT_NAME}`)
-      console.log(`✓ 项目 ${PROJECT_NAME} 已存在`)
-    } catch {
-      try {
-        await fetchCF(CF_TOKEN, `/accounts/${accountId}/pages/projects`, {
-          method: 'POST',
-          body: JSON.stringify({
-            name: PROJECT_NAME,
-            production_branch: 'main'
-          })
-        })
-        console.log(`✓ 创建项目: ${PROJECT_NAME}`)
-      } catch (e) {
-        console.log(`⚠ 项目创建失败: ${e.message}`)
-      }
-    }
-    
     // 完成
     console.log('\n=== 配置完成 ===')
     console.log(`✓ Zone ID: ${ZONE_ID}`)
     console.log(`✓ 域名: ${ZONE_NAME}`)
     console.log(`✓ 子域名: 24 个 (ide01-ide24.${ZONE_NAME})`)
-    console.log(`✓ Pages 项目: ${PROJECT_NAME}`)
+    console.log(`✓ 所有子域名指向: GitHub Pages`)
     
     console.log('\n访问地址:')
     console.log(`  主域名: https://itszzl-sudo.github.io/rust-wasm-web-ide/`)
     console.log(`  子域名: https://ide01.${ZONE_NAME}`)
-    console.log(`  子域名: https://ide24.${ZONE_NAME}`)
+    console.log(`          https://ide02.${ZONE_NAME}`)
+    console.log(`          ...`)
+    console.log(`          https://ide24.${ZONE_NAME}`)
     
   } catch (e) {
     console.error('\n✗ 配置失败:', e.message)
