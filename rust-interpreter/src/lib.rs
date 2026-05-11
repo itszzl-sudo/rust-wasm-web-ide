@@ -68,6 +68,23 @@ pub enum Token {
     Dot,
     FatArrow,
     
+    // WebAssembly keywords
+    Pub,
+    Use,
+    Mod,
+    Crate,
+    Extern,
+    Static,
+    Const,
+    Ref,
+    Unsafe,
+    Async,
+    Await,
+    Dyn,
+    Trait,
+    Where,
+    Type,
+    
     // Special
     Println,
     Eof,
@@ -172,6 +189,34 @@ pub enum Stmt {
     ImplBlock {
         type_name: String,
         methods: Vec<Stmt>,
+    },
+    Use {
+        path: String,
+    },
+    Mod {
+        name: String,
+        content: Option<Vec<Stmt>>,
+    },
+    Extern {
+        abi: String,
+        items: Vec<Stmt>,
+    },
+    TraitDef {
+        name: String,
+        methods: Vec<(String, Vec<String>)>,
+    },
+    Const {
+        name: String,
+        value: Expr,
+    },
+    Static {
+        name: String,
+        mutable: bool,
+        value: Expr,
+    },
+    TypeAlias {
+        name: String,
+        target: String,
     },
 }
 
@@ -310,6 +355,21 @@ impl Lexer {
                         "impl" => Ok(Token::Impl),
                         "Self" => Ok(Token::Self_),
                         "println" => Ok(Token::Println),
+                        "pub" => Ok(Token::Pub),
+                        "use" => Ok(Token::Use),
+                        "mod" => Ok(Token::Mod),
+                        "crate" => Ok(Token::Crate),
+                        "extern" => Ok(Token::Extern),
+                        "static" => Ok(Token::Static),
+                        "const" => Ok(Token::Const),
+                        "ref" => Ok(Token::Ref),
+                        "unsafe" => Ok(Token::Unsafe),
+                        "async" => Ok(Token::Async),
+                        "await" => Ok(Token::Await),
+                        "dyn" => Ok(Token::Dyn),
+                        "trait" => Ok(Token::Trait),
+                        "where" => Ok(Token::Where),
+                        "type" => Ok(Token::Type),
                         _ => Ok(Token::Identifier(id)),
                     }
                 }
@@ -471,6 +531,14 @@ impl Parser {
             Token::Struct => self.parse_struct(),
             Token::Enum => self.parse_enum(),
             Token::Impl => self.parse_impl(),
+            Token::Use => self.parse_use(),
+            Token::Mod => self.parse_mod(),
+            Token::Extern => self.parse_extern(),
+            Token::Trait => self.parse_trait(),
+            Token::Const => self.parse_const(),
+            Token::Static => self.parse_static(),
+            Token::Type => self.parse_type_alias(),
+            Token::Pub => self.parse_pub(),
             _ => {
                 let expr = self.parse_expr()?;
                 if matches!(self.current, Token::Semicolon) {
@@ -555,6 +623,204 @@ impl Parser {
         }
         self.expect(Token::RightBrace)?;
         Ok(Stmt::ImplBlock { type_name, methods })
+    }
+
+    fn parse_use(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        let mut path = String::new();
+        while !matches!(self.current, Token::Semicolon) {
+            match &self.current {
+                Token::Identifier(s) => path.push_str(s),
+                Token::DoubleColon => path.push_str("::"),
+                Token::Star => path.push('*'),
+                Token::LeftBrace => path.push('{'),
+                Token::RightBrace => path.push('}'),
+                Token::Comma => path.push(','),
+                _ => break,
+            }
+            self.advance()?;
+        }
+        self.expect(Token::Semicolon)?;
+        Ok(Stmt::Use { path })
+    }
+
+    fn parse_mod(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        let name = match &self.current {
+            Token::Identifier(n) => n.clone(),
+            _ => return Err("Expected module name".to_string()),
+        };
+        self.advance()?;
+        
+        let content = if matches!(self.current, Token::LeftBrace) {
+            self.advance()?;
+            let mut stmts = Vec::new();
+            while !matches!(self.current, Token::RightBrace) {
+                stmts.push(self.parse_stmt()?);
+            }
+            self.expect(Token::RightBrace)?;
+            Some(stmts)
+        } else {
+            self.expect(Token::Semicolon)?;
+            None
+        };
+        
+        Ok(Stmt::Mod { name, content })
+    }
+
+    fn parse_extern(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        let abi = match &self.current {
+            Token::StringLiteral(s) => s.clone(),
+            Token::Identifier(s) => s.clone(),
+            _ => return Err("Expected abi name".to_string()),
+        };
+        self.advance()?;
+        self.expect(Token::LeftBrace)?;
+        let mut items = Vec::new();
+        while !matches!(self.current, Token::RightBrace) {
+            items.push(self.parse_stmt()?);
+        }
+        self.expect(Token::RightBrace)?;
+        Ok(Stmt::Extern { abi, items })
+    }
+
+    fn parse_trait(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        let name = match &self.current {
+            Token::Identifier(n) => n.clone(),
+            _ => return Err("Expected trait name".to_string()),
+        };
+        self.advance()?;
+        self.expect(Token::LeftBrace)?;
+        let mut methods = Vec::new();
+        while !matches!(self.current, Token::RightBrace) {
+            if matches!(self.current, Token::Fn) {
+                self.advance()?;
+                let method_name = match &self.current {
+                    Token::Identifier(n) => n.clone(),
+                    _ => return Err("Expected method name".to_string()),
+                };
+                self.advance()?;
+                self.expect(Token::LeftParen)?;
+                let mut params = Vec::new();
+                while !matches!(self.current, Token::RightParen) {
+                    if let Token::Identifier(p) = &self.current {
+                        params.push(p.clone());
+                        self.advance()?;
+                        if matches!(self.current, Token::Comma) {
+                            self.advance()?;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                self.expect(Token::RightParen)?;
+                methods.push((method_name, params));
+                if matches!(self.current, Token::Semicolon) {
+                    self.advance()?;
+                }
+            } else {
+                break;
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        Ok(Stmt::TraitDef { name, methods })
+    }
+
+    fn parse_const(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        let name = match &self.current {
+            Token::Identifier(n) => n.clone(),
+            _ => return Err("Expected const name".to_string()),
+        };
+        self.advance()?;
+        if matches!(self.current, Token::Colon) {
+            self.advance()?;
+            while !matches!(self.current, Token::Equal) {
+                self.advance()?;
+            }
+        }
+        self.expect(Token::Equal)?;
+        let value = self.parse_expr()?;
+        self.expect(Token::Semicolon)?;
+        Ok(Stmt::Const { name, value })
+    }
+
+    fn parse_static(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        let mutable = if matches!(self.current, Token::Mut) {
+            self.advance()?;
+            true
+        } else {
+            false
+        };
+        let name = match &self.current {
+            Token::Identifier(n) => n.clone(),
+            _ => return Err("Expected static name".to_string()),
+        };
+        self.advance()?;
+        if matches!(self.current, Token::Colon) {
+            self.advance()?;
+            while !matches!(self.current, Token::Equal) {
+                self.advance()?;
+            }
+        }
+        self.expect(Token::Equal)?;
+        let value = self.parse_expr()?;
+        self.expect(Token::Semicolon)?;
+        Ok(Stmt::Static { name, mutable, value })
+    }
+
+    fn parse_type_alias(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        let name = match &self.current {
+            Token::Identifier(n) => n.clone(),
+            _ => return Err("Expected type name".to_string()),
+        };
+        self.advance()?;
+        self.expect(Token::Equal)?;
+        let mut target = String::new();
+        while !matches!(self.current, Token::Semicolon) {
+            match &self.current {
+                Token::Identifier(s) => target.push_str(s),
+                Token::DoubleColon => target.push_str("::"),
+                Token::LeftBracket => target.push('['),
+                Token::RightBracket => target.push(']'),
+                Token::LeftParen => target.push('('),
+                Token::RightParen => target.push(')'),
+                Token::Comma => target.push(','),
+                _ => break,
+            }
+            self.advance()?;
+        }
+        self.expect(Token::Semicolon)?;
+        Ok(Stmt::TypeAlias { name, target })
+    }
+
+    fn parse_pub(&mut self) -> Result<Stmt, String> {
+        self.advance()?;
+        if matches!(self.current, Token::Fn) {
+            self.parse_fn()
+        } else if matches!(self.current, Token::Struct) {
+            self.parse_struct()
+        } else if matches!(self.current, Token::Enum) {
+            self.parse_enum()
+        } else if matches!(self.current, Token::Mod) {
+            self.parse_mod()
+        } else if matches!(self.current, Token::Const) {
+            self.parse_const()
+        } else if matches!(self.current, Token::Static) {
+            self.parse_static()
+        } else if matches!(self.current, Token::Trait) {
+            self.parse_trait()
+        } else if matches!(self.current, Token::Type) {
+            self.parse_type_alias()
+        } else if matches!(self.current, Token::Use) {
+            self.parse_use()
+        } else {
+            Err(format!("Expected item after pub, got {:?}", self.current))
+        }
     }
 
     fn parse_let(&mut self) -> Result<Stmt, String> {
@@ -1061,6 +1327,19 @@ impl Interpreter {
                     }
                 }
             }
+            Stmt::Use { .. } => {}
+            Stmt::Mod { .. } => {}
+            Stmt::Extern { .. } => {}
+            Stmt::TraitDef { .. } => {}
+            Stmt::Const { name, value } => {
+                let val = self.evaluate(value)?;
+                self.globals.insert(name.clone(), val);
+            }
+            Stmt::Static { name, mutable: _, value } => {
+                let val = self.evaluate(value)?;
+                self.globals.insert(name.clone(), val);
+            }
+            Stmt::TypeAlias { .. } => {}
         }
         Ok(())
     }

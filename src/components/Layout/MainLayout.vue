@@ -10,6 +10,7 @@
         @newFile="handleNewFile"
         @typeCheck="handleTypeCheck"
         @parallelCheck="handleParallelCheck"
+        @download="handleDownload"
       />
     </div>
     <div class="content-container">
@@ -187,6 +188,20 @@ const handleParallelCheck = async () => {
   } catch (e) {
     logPanelRef.value?.addLog('error', `并行纠错失败: ${(e as Error).message}`)
   }
+}
+
+const handleDownload = () => {
+  const filename = activeFile.value || 'main.rs'
+  const blob = new Blob([currentCode.value], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  logPanelRef.value?.addLog('info', `已下载: ${filename}`)
 }
 
 const handleFileSelect = (filename: string) => {

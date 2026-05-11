@@ -31,6 +31,10 @@
         <span class="icon">⚡</span>
         <span class="text">并行检查</span>
       </button>
+      <button class="toolbar-btn download-btn" @click="$emit('download')" title="下载代码">
+        <span class="icon">⬇</span>
+        <span class="text">下载</span>
+      </button>
     </div>
     <div class="toolbar-right">
       <button class="lang-btn" @click="toggleLanguage" :title="locale === 'zh-CN' ? 'Switch to English' : '切换到中文'">
@@ -66,6 +70,7 @@ defineEmits<{
   (e: 'newFile'): void
   (e: 'typeCheck'): void
   (e: 'parallelCheck'): void
+  (e: 'download'): void
 }>()
 
 const { t, locale } = useI18n()
