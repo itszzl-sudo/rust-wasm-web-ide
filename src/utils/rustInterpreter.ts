@@ -10,7 +10,7 @@ export async function initRustInterpreter(): Promise<void> {
   if (wasmModule) return
   
   try {
-    const wasmPath = '/wasm/rust_interpreter.js'
+    const wasmPath = '/rust-wasm-web-ide/wasm/rust_interpreter.js'
     const module = await import(/* @vite-ignore */ wasmPath)
     await module.default()
     wasmModule = module
