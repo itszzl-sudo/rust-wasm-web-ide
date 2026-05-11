@@ -7,39 +7,44 @@
       </div>
     </div>
     <div class="toolbar-center">
-      <button class="toolbar-btn run-btn" @click="$emit('run')" title="运行">
+      <button class="toolbar-btn run-btn" @click="$emit('run')" :title="t('toolbar.run')">
         <span class="icon">▶</span>
-        <span class="text">运行</span>
+        <span class="text">{{ t('toolbar.run') }}</span>
       </button>
-      <button class="toolbar-btn" @click="$emit('save')" title="保存">
+      <button class="toolbar-btn" @click="$emit('save')" :title="t('toolbar.save')">
         <span class="icon">💾</span>
-        <span class="text">保存</span>
+        <span class="text">{{ t('toolbar.save') }}</span>
       </button>
-      <button class="toolbar-btn" @click="$emit('format')" title="格式化">
+      <button class="toolbar-btn" @click="$emit('format')" :title="t('toolbar.format')">
         <span class="icon">📝</span>
-        <span class="text">格式化</span>
+        <span class="text">{{ t('toolbar.format') }}</span>
       </button>
-      <button class="toolbar-btn" @click="$emit('newFile')" title="新建文件">
+      <button class="toolbar-btn" @click="$emit('newFile')" :title="t('toolbar.newFile')">
         <span class="icon">📄</span>
-        <span class="text">新建</span>
+        <span class="text">{{ t('toolbar.newFile') }}</span>
       </button>
-      <button class="toolbar-btn typecheck-btn" @click="$emit('typeCheck')" title="类型检查">
+      <button class="toolbar-btn typecheck-btn" @click="$emit('typeCheck')" :title="t('toolbar.typeCheck')">
         <span class="icon">🔍</span>
-        <span class="text">类型检查</span>
+        <span class="text">{{ t('toolbar.typeCheck') }}</span>
       </button>
     </div>
     <div class="toolbar-right">
+      <button class="lang-btn" @click="toggleLanguage" :title="locale === 'zh-CN' ? 'Switch to English' : '切换到中文'">
+        {{ locale === 'zh-CN' ? 'EN' : '中' }}
+      </button>
       <span class="status" :class="{ 'gpu-enabled': gpuEnabled }">
         {{ gpuEnabled ? 'GPU' : 'CPU' }}
       </span>
       <span class="status thread-status">
-        {{ threadCount > 0 ? `${threadCount} 线程` : '单线程' }}
+        {{ threadCount > 0 ? `${threadCount} ${t('toolbar.threads')}` : t('toolbar.singleThread') }}
       </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 interface Props {
   gpuEnabled?: boolean
   threadCount?: number
@@ -57,6 +62,13 @@ defineEmits<{
   (e: 'newFile'): void
   (e: 'typeCheck'): void
 }>()
+
+const { t, locale } = useI18n()
+
+const toggleLanguage = () => {
+  locale.value = locale.value === 'zh-CN' ? 'en-US' : 'zh-CN'
+  localStorage.setItem('rust_ide_locale', locale.value)
+}
 </script>
 
 <style scoped>
@@ -162,5 +174,24 @@ defineEmits<{
 .thread-status {
   color: #81c784;
   background-color: rgba(129, 199, 132, 0.1);
+}
+
+.lang-btn {
+  padding: 4px 10px;
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 8px;
+}
+
+.lang-btn:hover {
+  background-color: #3d3d3d;
+  border-color: #666;
+  color: #fff;
 }
 </style>

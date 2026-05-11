@@ -1,8 +1,8 @@
 <template>
   <div class="log-panel">
     <div class="log-header">
-      <span class="header-title">执行日志</span>
-      <button class="clear-btn" @click="clearLogs">清空</button>
+      <span class="header-title">{{ t('panel.logs') }}</span>
+      <button class="clear-btn" @click="clearLogs">{{ t('panel.clear') }}</button>
     </div>
     <div ref="logContainer" class="log-container">
       <div
@@ -21,6 +21,9 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t, locale } = useI18n()
 
 interface LogEntry {
   timestamp: number
@@ -50,7 +53,7 @@ const clearLogs = () => {
 
 const formatTime = (timestamp: number): string => {
   const date = new Date(timestamp)
-  return date.toLocaleTimeString('zh-CN', {
+  return date.toLocaleTimeString(locale.value === 'zh-CN' ? 'zh-CN' : 'en-US', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

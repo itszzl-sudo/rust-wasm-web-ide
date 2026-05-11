@@ -9,7 +9,10 @@ export default {
     save: '保存',
     format: '格式化',
     newFile: '新建文件',
-    export: '导出项目'
+    typeCheck: '类型检查',
+    export: '导出项目',
+    threads: '线程',
+    singleThread: '单线程'
   },
   editor: {
     placeholder: '在此输入 Rust 代码...',

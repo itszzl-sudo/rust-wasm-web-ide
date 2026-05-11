@@ -2,12 +2,17 @@ import { createApp } from 'vue'
 import { createI18n } from 'vue-i18n'
 import App from './App.vue'
 import zhCN from './i18n/zh-CN'
+import enUS from './i18n/en-US'
+
+const savedLocale = localStorage.getItem('rust_ide_locale') || 'zh-CN'
 
 const i18n = createI18n({
   legacy: false,
-  locale: 'zh-CN',
+  locale: savedLocale,
+  fallbackLocale: 'en-US',
   messages: {
-    'zh-CN': zhCN
+    'zh-CN': zhCN,
+    'en-US': enUS
   }
 })
 
