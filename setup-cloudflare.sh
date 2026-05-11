@@ -59,13 +59,13 @@ for i in $(seq -w 1 24); do
     --data "{
       \"type\": \"CNAME\",
       \"name\": \"$SUBDOMAIN\",
-      \"content\": \"$PROJECT_NAME.pages.dev\",
+      \"content\": \"itszzl-sudo.github.io\",
       \"ttl\": 3600,
       \"proxied\": true
     }")
   
   if echo "$RESULT" | grep -q '"success":true'; then
-    echo "✓ $FULL_DOMAIN → $PROJECT_NAME.pages.dev"
+    echo "✓ $FULL_DOMAIN → itszzl-sudo.github.io"
   else
     echo "⚠ $FULL_DOMAIN 可能已存在，跳过"
   fi
@@ -111,6 +111,6 @@ echo "  方式1: npx wrangler pages deploy docs --project-name=$PROJECT_NAME"
 echo "  方式2: 在 Cloudflare Dashboard 手动上传 docs/ 目录"
 
 echo -e "\n访问地址:"
-echo "  主域名: https://$PROJECT_NAME.pages.dev"
+echo "  主域名: https://itszzl-sudo.github.io/rust-wasm-web-ide/"
 echo "  子域名: https://ide01.$ZONE_NAME"
 echo "  子域名: https://ide24.$ZONE_NAME"

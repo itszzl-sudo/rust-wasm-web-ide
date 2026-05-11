@@ -86,17 +86,18 @@ async function setupCloudflare(CF_TOKEN, ZONE_NAME, PROJECT_NAME) {
       const subdomain = `${name}.${ZONE_NAME}`
       
       try {
+        const githubPages = 'itszzl-sudo.github.io'
         const data = await fetchCF(CF_TOKEN, `/zones/${zoneId}/dns_records`, {
           method: 'POST',
           body: JSON.stringify({
             type: 'CNAME',
             name: name,
-            content: `${PROJECT_NAME}.pages.dev`,
+            content: githubPages,
             ttl: 3600,
             proxied: true
           })
         })
-        console.log(`✓ ${subdomain} → ${PROJECT_NAME}.pages.dev`)
+        console.log(`✓ ${subdomain} → ${githubPages}`)
       } catch (e) {
         if (e.message.includes('already exists') || e.message.includes('81057')) {
           console.log(`⚠ ${subdomain} 已存在，跳过`)
@@ -178,7 +179,7 @@ async function setupCloudflare(CF_TOKEN, ZONE_NAME, PROJECT_NAME) {
     console.log('  方式2: 在 Cloudflare Dashboard 手动上传 docs/ 目录')
     
     console.log('\n访问地址:')
-    console.log(`  主域名: https://${PROJECT_NAME}.pages.dev`)
+    console.log(`  主域名: https://itszzl-sudo.github.io/rust-wasm-web-ide/`)
     console.log(`  子域名: https://ide01.${ZONE_NAME}`)
     console.log(`  子域名: https://ide24.${ZONE_NAME}`)
     
