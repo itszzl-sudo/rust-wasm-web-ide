@@ -39,7 +39,7 @@ interface HoverInfo {
   }
 }
 
-let rustAnalyzerModule: RustAnalyzer | null = null
+let typeCheckerModule: any = null
 let loadPromise: Promise<void> | null = null
 let isLoaded = false
 
@@ -52,11 +52,18 @@ export async function loadRustAnalyzer(): Promise<void> {
 
   loadPromise = (async () => {
     try {
-      console.warn('[RustAnalyzer] rust-analyzer Wasm is not available')
-      console.warn('[RustAnalyzer] Type checking feature is disabled')
-      isLoaded = false
+      console.log('[TypeChecker] Loading type checker Wasm...')
+      const startTime = performance.now()
+      
+      const module = await import(/* @vite-ignore */ '/rust-wasm-web-ide/type-checker/rust_type_checker.js')
+      await module.default()
+      typeCheckerModule = module
+      
+      const loadTime = performance.now() - startTime
+      console.log(`[TypeChecker] Loaded in ${(loadTime / 1000).toFixed(2)}s`)
+      isLoaded = true
     } catch (e) {
-      console.error('[RustAnalyzer] 加载失败:', e)
+      console.error('[TypeChecker] Failed to load:', e)
       throw e
     }
   })()
@@ -69,11 +76,11 @@ export function isRustAnalyzerLoaded(): boolean {
 }
 
 export async function typeCheck(code: string): Promise<TypeCheckResult> {
-  if (!rustAnalyzerModule) {
+  if (!typeCheckerModule) {
     await loadRustAnalyzer()
   }
 
-  if (!rustAnalyzerModule) {
+  if (!typeCheckerModule) {
     return {
       diagnostics: [],
       errors: 0,
@@ -82,13 +89,19 @@ export async function typeCheck(code: string): Promise<TypeCheckResult> {
   }
 
   try {
-    return await rustAnalyzerModule.check(code)
+    const result = await typeCheckerModule.check_types(code)
+    const diagnostics: Diagnostic[] = result.diagnostics || []
+    return {
+      diagnostics,
+      errors: diagnostics.filter((d: Diagnostic) => d.severity === 'error').length,
+      warnings: diagnostics.filter((d: Diagnostic) => d.severity === 'warning').length,
+    }
   } catch (e) {
-    console.error('[RustAnalyzer] 类型检查失败:', e)
+    console.error('[TypeChecker] Type check failed:', e)
     return {
       diagnostics: [{
         severity: 'error',
-        message: `类型检查失败: ${(e as Error).message}`,
+        message: `Type check failed: ${(e as Error).message}`,
         range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
       }],
       errors: 1,
@@ -101,18 +114,19 @@ export async function getCompletions(
   code: string,
   position: Position
 ): Promise<CompletionItem[]> {
-  if (!rustAnalyzerModule) {
+  if (!typeCheckerModule) {
     await loadRustAnalyzer()
   }
 
-  if (!rustAnalyzerModule) {
+  if (!typeCheckerModule) {
     return []
   }
 
   try {
-    return await rustAnalyzerModule.complete(code, position)
+    const result = await typeCheckerModule.get_completions(code, position.line, position.character)
+    return result || []
   } catch (e) {
-    console.error('[RustAnalyzer] 补全失败:', e)
+    console.error('[TypeChecker] Completion failed:', e)
     return []
   }
 }
@@ -121,18 +135,9 @@ export async function getHoverInfo(
   code: string,
   position: Position
 ): Promise<HoverInfo | null> {
-  if (!rustAnalyzerModule) {
+  if (!typeCheckerModule) {
     await loadRustAnalyzer()
   }
 
-  if (!rustAnalyzerModule) {
-    return null
-  }
-
-  try {
-    return await rustAnalyzerModule.hover(code, position)
-  } catch (e) {
-    console.error('[RustAnalyzer] Hover 失败:', e)
-    return null
-  }
+  return null
 }
