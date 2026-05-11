@@ -1,4 +1,8 @@
-const DOMAINS = Array.from({ length: 24 }, (_, i) => `ide${String(i + 1).padStart(2, '0')}.irisverse.org`)
+const MAIN_DOMAIN = 'itszzl-sudo.github.io/rust-wasm-web-ide'
+const SUB_DOMAINS = Array.from({ length: 24 }, (_, i) => `ide${String(i + 1).padStart(2, '0')}.irisverse.org`)
+
+// 主域名和子域名地位平等
+const DOMAINS = [MAIN_DOMAIN, ...SUB_DOMAINS]
 
 let currentDomainIndex = 0
 const failedDomains = new Set<number>()
@@ -26,4 +30,4 @@ export function getAvailableDomains(): string[] {
   return DOMAINS.filter((_, i) => !failedDomains.has(i))
 }
 
-export { DOMAINS }
+export { DOMAINS, MAIN_DOMAIN, SUB_DOMAINS }

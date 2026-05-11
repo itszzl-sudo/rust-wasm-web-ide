@@ -22,11 +22,14 @@ export async function initRustInterpreter(): Promise<void> {
   
   try {
     console.log('[RustInterpreter] Loading with multi-domain acceleration...')
+    console.log(`[RustInterpreter] Testing ${DOMAINS.length} domains in parallel...`)
     const startTime = performance.now()
     
     const wasmPath = '/wasm/rust_interpreter.js'
+    
+    // 所有域名平等参与，取最快响应
     const results = await Promise.allSettled(
-      DOMAINS.slice(0, 6).map(async (domain) => {
+      DOMAINS.map(async (domain) => {
         const url = `https://${domain}${wasmPath}`
         try {
           const module = await import(/* @vite-ignore */ url)
@@ -46,13 +49,9 @@ export async function initRustInterpreter(): Promise<void> {
     if (successResult) {
       wasmModule = successResult.value.module
       const loadTime = performance.now() - startTime
-      console.log(`[RustInterpreter] Loaded from ${successResult.value.domain} in ${(loadTime / 1000).toFixed(2)}s`)
+      console.log(`[RustInterpreter] ✓ Loaded from ${successResult.value.domain} in ${(loadTime / 1000).toFixed(2)}s`)
     } else {
-      const fallbackUrl = '/rust-wasm-web-ide/wasm/rust_interpreter.js'
-      console.log('[RustInterpreter] Falling back to GitHub Pages...')
-      const module = await import(/* @vite-ignore */ fallbackUrl)
-      await module.default()
-      wasmModule = module
+      throw new Error('All domains failed to load Wasm module')
     }
   } catch (e) {
     console.error('[RustInterpreter] Failed to load:', e)
