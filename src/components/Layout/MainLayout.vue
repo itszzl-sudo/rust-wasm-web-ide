@@ -9,6 +9,7 @@
         @format="handleFormat"
         @newFile="handleNewFile"
         @typeCheck="handleTypeCheck"
+        @parallelCheck="handleParallelCheck"
       />
     </div>
     <div class="content-container">
@@ -46,6 +47,7 @@ import { initRustInterpreter, interpretRustCode, formatRustCode } from '@/utils/
 import { loadRustAnalyzer, typeCheck, isRustAnalyzerLoaded } from '@/utils/rustAnalyzer'
 import { gpuExecutor } from '@/utils/gpuExecutor'
 import { threadManager } from '@/utils/threadManager'
+import { parallelSyntaxCheck, parallelAnalyze, interpreterPool } from '@/utils/parallelInterpreter'
 
 const editorRef = ref<InstanceType<typeof MonacoEditor>>()
 const logPanelRef = ref<InstanceType<typeof LogPanel>>()
@@ -136,6 +138,54 @@ const handleTypeCheck = async () => {
     }
   } catch (e) {
     logPanelRef.value?.addLog('error', `类型检查失败: ${(e as Error).message}`)
+  }
+}
+
+const handleParallelCheck = async () => {
+  logPanelRef.value?.addLog('info', '启动多域名并行纠错（24域名）...')
+  
+  try {
+    const startTime = performance.now()
+    
+    const [syntaxResult, analyzeResult] = await Promise.all([
+      parallelSyntaxCheck(currentCode.value),
+      parallelAnalyze(currentCode.value)
+    ])
+    
+    const totalTime = performance.now() - startTime
+    
+    logPanelRef.value?.addLog('info', `并行纠错完成，耗时: ${totalTime.toFixed(0)}ms`)
+    logPanelRef.value?.addLog('info', `检查域名: ${syntaxResult.checkedBy?.join(', ')}`)
+    
+    if (syntaxResult.errors?.length > 0) {
+      logPanelRef.value?.addLog('error', `发现 ${syntaxResult.errors.length} 个错误`)
+      syntaxResult.errors.forEach((e: any) => {
+        logPanelRef.value?.addLog('error', `行 ${e.line}: ${e.message}`)
+      })
+    }
+    
+    if (syntaxResult.warnings?.length > 0) {
+      logPanelRef.value?.addLog('warn', `发现 ${syntaxResult.warnings.length} 个警告`)
+      syntaxResult.warnings.forEach((w: any) => {
+        logPanelRef.value?.addLog('warn', `行 ${w.line}: ${w.message}`)
+      })
+    }
+    
+    if (analyzeResult.functions?.length > 0) {
+      logPanelRef.value?.addLog('info', `函数: ${analyzeResult.functions.map((f: any) => f.name).join(', ')}`)
+    }
+    if (analyzeResult.structs?.length > 0) {
+      logPanelRef.value?.addLog('info', `结构体: ${analyzeResult.structs.map((s: any) => s.name).join(', ')}`)
+    }
+    if (analyzeResult.enums?.length > 0) {
+      logPanelRef.value?.addLog('info', `枚举: ${analyzeResult.enums.map((e: any) => e.name).join(', ')}`)
+    }
+    
+    const stats = interpreterPool.getStats()
+    logPanelRef.value?.addLog('info', `活跃 Worker: ${stats.activeWorkers} 个`)
+    
+  } catch (e) {
+    logPanelRef.value?.addLog('error', `并行纠错失败: ${(e as Error).message}`)
   }
 }
 

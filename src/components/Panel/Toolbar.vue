@@ -27,6 +27,10 @@
         <span class="icon">🔍</span>
         <span class="text">{{ t('toolbar.typeCheck') }}</span>
       </button>
+      <button class="toolbar-btn parallel-btn" @click="$emit('parallelCheck')" title="并行纠错">
+        <span class="icon">⚡</span>
+        <span class="text">并行检查</span>
+      </button>
     </div>
     <div class="toolbar-right">
       <button class="lang-btn" @click="toggleLanguage" :title="locale === 'zh-CN' ? 'Switch to English' : '切换到中文'">
@@ -61,6 +65,7 @@ defineEmits<{
   (e: 'format'): void
   (e: 'newFile'): void
   (e: 'typeCheck'): void
+  (e: 'parallelCheck'): void
 }>()
 
 const { t, locale } = useI18n()
