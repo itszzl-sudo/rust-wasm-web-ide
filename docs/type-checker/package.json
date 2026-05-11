@@ -1,0 +1,15 @@
+{
+  "name": "rust-type-checker",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "rust_type_checker_bg.wasm",
+    "rust_type_checker.js",
+    "rust_type_checker.d.ts"
+  ],
+  "main": "rust_type_checker.js",
+  "types": "rust_type_checker.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
