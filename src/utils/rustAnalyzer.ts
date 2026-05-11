@@ -43,8 +43,6 @@ let rustAnalyzerModule: RustAnalyzer | null = null
 let loadPromise: Promise<void> | null = null
 let isLoaded = false
 
-const RUST_ANALYZER_WASM_URL = 'https://cdn.jsdelivr.net/npm/rust-analyzer-wasm@0.0.1/rust_analyzer_wasm.js'
-
 export async function loadRustAnalyzer(): Promise<void> {
   if (isLoaded) return
   if (loadPromise) {
@@ -54,16 +52,9 @@ export async function loadRustAnalyzer(): Promise<void> {
 
   loadPromise = (async () => {
     try {
-      console.log('[RustAnalyzer] 开始加载 rust-analyzer Wasm（约 4MB）...')
-      const startTime = performance.now()
-      
-      const module = await import(/* @vite-ignore */ RUST_ANALYZER_WASM_URL)
-      await module.default()
-      rustAnalyzerModule = module
-      
-      const loadTime = performance.now() - startTime
-      console.log(`[RustAnalyzer] 加载完成，耗时: ${(loadTime / 1000).toFixed(2)}s`)
-      isLoaded = true
+      console.warn('[RustAnalyzer] rust-analyzer Wasm is not available')
+      console.warn('[RustAnalyzer] Type checking feature is disabled')
+      isLoaded = false
     } catch (e) {
       console.error('[RustAnalyzer] 加载失败:', e)
       throw e
