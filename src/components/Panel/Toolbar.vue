@@ -7,9 +7,9 @@
       </div>
     </div>
     <div class="toolbar-center">
-      <button class="toolbar-btn run-btn" @click="$emit('run')" :title="t('toolbar.run')">
-        <span class="icon">▶</span>
-        <span class="text">{{ t('toolbar.run') }}</span>
+      <button class="toolbar-btn" @click="$emit('newFile')" :title="t('toolbar.newFile')">
+        <span class="icon">📄</span>
+        <span class="text">{{ t('toolbar.newFile') }}</span>
       </button>
       <button class="toolbar-btn" @click="$emit('save')" :title="t('toolbar.save')">
         <span class="icon">💾</span>
@@ -19,28 +19,24 @@
         <span class="icon">📝</span>
         <span class="text">{{ t('toolbar.format') }}</span>
       </button>
-      <button class="toolbar-btn" @click="$emit('newFile')" :title="t('toolbar.newFile')">
-        <span class="icon">📄</span>
-        <span class="text">{{ t('toolbar.newFile') }}</span>
-      </button>
       <button class="toolbar-btn typecheck-btn" @click="$emit('typeCheck')" :title="t('toolbar.typeCheck')">
         <span class="icon">🔍</span>
         <span class="text">{{ t('toolbar.typeCheck') }}</span>
       </button>
-      <button class="toolbar-btn parallel-btn" @click="$emit('parallelCheck')" title="并行纠错">
-        <span class="icon">⚡</span>
-        <span class="text">并行检查</span>
+      <button class="toolbar-btn run-btn" @click="$emit('run')" :title="t('toolbar.run')">
+        <span class="icon">▶</span>
+        <span class="text">{{ t('toolbar.run') }}</span>
       </button>
-      <button class="toolbar-btn download-btn" @click="$emit('download')" title="下载代码">
+      <button class="toolbar-btn compile-btn" @click="$emit('compile')" title="下载 WASM">
         <span class="icon">⬇</span>
-        <span class="text">下载</span>
-      </button>
-      <button class="toolbar-btn compile-btn" @click="$emit('compile')" title="编译为WASM">
-        <span class="icon">⚙</span>
-        <span class="text">编译</span>
+        <span class="text">WASM</span>
       </button>
     </div>
     <div class="toolbar-right">
+      <a class="github-link" href="https://github.com/itszzl-sudo/rust-wasm-web-ide" target="_blank" rel="noopener">
+        <span class="icon">📦</span>
+        <span class="text">GitHub</span>
+      </a>
       <button class="lang-btn" @click="toggleLanguage" :title="locale === 'zh-CN' ? 'Switch to English' : '切换到中文'">
         {{ locale === 'zh-CN' ? 'EN' : '中' }}
       </button>
@@ -205,6 +201,29 @@ const toggleLanguage = () => {
 }
 
 .lang-btn:hover {
+  background-color: #3d3d3d;
+  border-color: #666;
+  color: #fff;
+}
+
+.github-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 8px;
+}
+
+.github-link:hover {
   background-color: #3d3d3d;
   border-color: #666;
   color: #fff;
