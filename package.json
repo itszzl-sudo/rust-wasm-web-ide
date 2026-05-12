@@ -5,6 +5,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:github": "vite build --mode production",
+    "build:cloudflare": "vite build --mode cloudflare",
+    "build:all": "vite build --mode production && vite build --mode cloudflare",
+    "deploy:github": "vite build --mode production && git add docs-github && git commit -m 'deploy: github' && git push origin main",
+    "deploy:cloudflare": "vite build --mode cloudflare && wrangler pages deploy docs-cloudflare --project-name=rust-wasm-web-ide --commit-dirty=true",
+    "deploy:all": "vite build --mode production && vite build --mode cloudflare && git add docs-github && git commit -m 'deploy: github' && git push origin main && wrangler pages deploy docs-cloudflare --project-name=rust-wasm-web-ide --commit-dirty=true",
     "build:check": "vue-tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore"

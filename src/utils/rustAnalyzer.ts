@@ -55,7 +55,8 @@ export async function loadRustAnalyzer(): Promise<void> {
       console.log('[TypeChecker] Loading type checker Wasm...')
       const startTime = performance.now()
       
-      const module = await import(/* @vite-ignore */ '/rust-wasm-web-ide/type-checker/rust_type_checker.js')
+      const base = window.location.hostname.includes('github.io') ? '/rust-wasm-web-ide' : ''
+      const module = await import(/* @vite-ignore */ `${base}/type-checker/rust_type_checker.js`)
       await module.default()
       typeCheckerModule = module
       
