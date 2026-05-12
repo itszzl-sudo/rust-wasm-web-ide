@@ -88,6 +88,7 @@ class AnalysisWorker {
     try {
       const blob = new Blob([workerCode], { type: 'application/javascript' })
       const workerUrl = URL.createObjectURL(blob)
+      console.log('[Worker] Creating worker from blob URL:', workerUrl.substring(0, 50) + '...')
       this.worker = new Worker(workerUrl)
       
       this.worker.onmessage = (e) => {
@@ -102,8 +103,8 @@ class AnalysisWorker {
           this.messageQueue.splice(id, 1)
         }
       }
-      this.worker.onerror = (e) => {
-        console.error('Worker error:', e)
+      this.worker.onerror = (e: ErrorEvent) => {
+        console.error('Worker error:', e.message || e, 'lineno:', e.lineno, 'filename:', e.filename)
       }
       this.ready = true
     } catch (e) {
