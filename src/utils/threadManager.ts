@@ -19,123 +19,15 @@ export interface AnalysisResult {
 }
 
 class AnalysisWorker {
-  private worker: Worker | null = null
-  private ready: boolean = false
-  private messageQueue: Array<{
-    task: AnalysisTask
-    resolve: (result: AnalysisResult) => void
-    reject: (error: Error) => void
-  }> = []
-
-  constructor() {
-    const workerCode = `
-      self.onmessage = (e) => {
-        const { id, task } = e.data
-        
-        try {
-          const result = analyze(task)
-          self.postMessage({ id, result })
-        } catch (error) {
-          self.postMessage({ id, error: error.message })
-        }
-      }
-      
-      function analyze(task) {
-        const errors = []
-        const lines = task.code.split('\\n')
-        
-        lines.forEach((line, lineIndex) => {
-          if (line.includes('println!(')) {
-            const match = line.match(/println!\\(([^)]*)\\)/)
-            if (match && !match[1].startsWith('"')) {
-              errors.push({
-                message: 'println! requires a format string',
-                line: lineIndex + 1,
-                column: line.indexOf('println!') + 1,
-                severity: 'error'
-              })
-            }
-          }
-          
-          if (line.includes('fn ') && !line.includes('(')) {
-            errors.push({
-              message: 'Function missing parameter list',
-              line: lineIndex + 1,
-              column: line.indexOf('fn ') + 1,
-              severity: 'error'
-            })
-          }
-        })
-        
-        let braceCount = 0
-        lines.forEach((line, lineIndex) => {
-          braceCount += (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
-        })
-        
-        if (braceCount !== 0) {
-          errors.push({
-            message: braceCount > 0 ? 'Unmatched opening brace' : 'Unmatched closing brace',
-            line: lines.length,
-            column: 0,
-            severity: 'error'
-          })
-        }
-        
-        return { errors }
-      }
-    `
-    
-    try {
-      const blob = new Blob([workerCode], { type: 'application/javascript' })
-      const workerUrl = URL.createObjectURL(blob)
-      console.log('[Worker] Creating worker from blob URL:', workerUrl.substring(0, 50) + '...')
-      this.worker = new Worker(workerUrl)
-      
-      this.worker.onmessage = (e) => {
-        const { id, result, error } = e.data
-        const pending = this.messageQueue[id]
-        if (pending) {
-          if (error) {
-            pending.reject(new Error(error))
-          } else {
-            pending.resolve(result)
-          }
-          this.messageQueue.splice(id, 1)
-        }
-      }
-      this.worker.onerror = (e: ErrorEvent) => {
-        console.error('Worker error:', e.message || e, 'lineno:', e.lineno, 'filename:', e.filename)
-      }
-      this.ready = true
-    } catch (e) {
-      console.error('Failed to create worker:', e)
-      this.ready = false
-    }
-  }
-
   isReady(): boolean {
-    return this.ready && this.worker !== null
+    return false
   }
 
   async analyze(task: AnalysisTask): Promise<AnalysisResult> {
-    if (!this.worker || !this.ready) {
-      throw new Error('Worker not ready')
-    }
-
-    return new Promise((resolve, reject) => {
-      const id = this.messageQueue.length
-      this.messageQueue.push({ task, resolve, reject })
-      this.worker!.postMessage({ id, task })
-    })
+    throw new Error('Worker disabled - using fallback')
   }
 
-  terminate(): void {
-    if (this.worker) {
-      this.worker.terminate()
-      this.worker = null
-      this.ready = false
-    }
-  }
+  terminate(): void {}
 }
 
 export class ThreadManager {
