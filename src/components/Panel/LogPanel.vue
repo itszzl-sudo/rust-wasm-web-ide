@@ -12,7 +12,7 @@
         :class="`log-${log.level}`"
       >
         <span class="log-time">{{ formatTime(log.timestamp) }}</span>
-        <span class="log-level">{{ log.level.toUpperCase() }}</span>
+        <span class="log-level">🌈 {{ log.level.toUpperCase() }}</span>
         <span class="log-message">{{ log.message }}</span>
       </div>
     </div>

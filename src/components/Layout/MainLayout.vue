@@ -259,6 +259,9 @@ const handleCodeChange = (code: string) => {
 }
 
 onMounted(async () => {
+  const buildTime = new Date().toLocaleString('zh-CN')
+  logPanelRef.value?.addLog('info', `构建时间: ${buildTime}`)
+  
   loadProject()
   if (activeFile.value) {
     currentCode.value = loadFile(activeFile.value) || ''
