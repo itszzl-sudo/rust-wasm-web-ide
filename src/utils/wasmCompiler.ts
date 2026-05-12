@@ -1,5 +1,3 @@
-import wabt from 'wabt'
-
 export interface CompileResult {
   success: boolean
   wasm?: Uint8Array
@@ -11,6 +9,17 @@ export interface CompileResult {
     wasmBytes: number
     compileTime: number
   }
+}
+
+let wabtModule: any = null
+
+async function loadWabt() {
+  if (wabtModule) return wabtModule
+  
+  const wabtUrl = 'https://cdn.jsdelivr.net/npm/wabt@1.0.32/index.js'
+  const module = await import(/* @vite-ignore */ wabtUrl)
+  wabtModule = await module.default()
+  return wabtModule
 }
 
 export async function compileRustToWasm(rustCode: string): Promise<CompileResult> {
@@ -55,7 +64,7 @@ export async function compileRustToWasm(rustCode: string): Promise<CompileResult
 
 async function compileWatToWasm(wat: string): Promise<Uint8Array> {
   try {
-    const wabtModule = await wabt()
+    const wabtModule = await loadWabt()
     
     const features = {
       exceptions: false,
