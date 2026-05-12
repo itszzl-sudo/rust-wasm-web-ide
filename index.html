@@ -8,7 +8,7 @@
     <script>
       self.MonacoEnvironment = {
         getWorker: function(_, label) {
-          var base = '/rust-wasm-web-ide/';
+          var base = '/';
           var workerPath = label === 'typescript' || label === 'javascript'
             ? base + 'ts.worker.js'
             : base + 'editor.worker.js';
