@@ -21,39 +21,20 @@ export async function initRustInterpreter(): Promise<void> {
   isLoading = true
   
   try {
-    console.log('[RustInterpreter] Loading with multi-domain acceleration...')
-    console.log(`[RustInterpreter] Testing ${DOMAINS.length} domains in parallel...`)
+    console.log('[RustInterpreter] Loading Rust interpreter...')
     const startTime = performance.now()
     
-    const base = window.location.hostname.includes('github.io') ? '/rust-wasm-web-ide' : ''
-    const wasmPath = `${base}/wasm/rust_interpreter.js`
+    const isGitHub = window.location.hostname.includes('github.io')
+    const wasmPath = isGitHub 
+      ? '/rust-wasm-web-ide/wasm/rust_interpreter.js'
+      : '/wasm/rust_interpreter.js'
     
-    // 所有域名平等参与，取最快响应
-    const results = await Promise.allSettled(
-      DOMAINS.map(async (domain) => {
-        const url = `https://${domain}${wasmPath}`
-        try {
-          const module = await import(/* @vite-ignore */ url)
-          await module.default()
-          return { module, domain, success: true }
-        } catch (e) {
-          return { module: null, domain, success: false, error: e }
-        }
-      })
-    )
+    const module = await import(/* @vite-ignore */ wasmPath)
+    await module.default()
+    wasmModule = module
     
-    const successResult = results.find(
-      (r): r is PromiseFulfilledResult<{ module: any; domain: string; success: boolean }> => 
-        r.status === 'fulfilled' && r.value.success && r.value.module
-    )
-    
-    if (successResult) {
-      wasmModule = successResult.value.module
-      const loadTime = performance.now() - startTime
-      console.log(`[RustInterpreter] ✓ Loaded from ${successResult.value.domain} in ${(loadTime / 1000).toFixed(2)}s`)
-    } else {
-      throw new Error('All domains failed to load Wasm module')
-    }
+    const loadTime = performance.now() - startTime
+    console.log(`[RustInterpreter] ✓ Loaded in ${(loadTime / 1000).toFixed(2)}s`)
   } catch (e) {
     console.error('[RustInterpreter] Failed to load:', e)
     throw e
