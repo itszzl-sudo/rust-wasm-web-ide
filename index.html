@@ -11,11 +11,10 @@
           ? '/rust-wasm-web-ide/' 
           : '/';
         self.MonacoEnvironment = {
-          getWorker: function(_, label) {
-            var workerPath = label === 'typescript' || label === 'javascript'
+          getWorkerUrl: function(_, label) {
+            return label === 'typescript' || label === 'javascript'
               ? base + 'ts.worker.js'
               : base + 'editor.worker.js';
-            return new Worker(workerPath, { type: 'module' });
           }
         };
       })();
