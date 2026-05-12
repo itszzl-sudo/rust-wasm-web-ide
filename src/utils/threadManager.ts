@@ -19,15 +19,125 @@ export interface AnalysisResult {
 }
 
 class AnalysisWorker {
+  private worker: Worker | null = null
+  private ready: boolean = false
+  private messageQueue: Array<{
+    task: AnalysisTask
+    resolve: (result: AnalysisResult) => void
+    reject: (error: Error) => void
+  }> = []
+  private onError: ((msg: string) => void) | null = null
+
+  constructor(onError?: (msg: string) => void) {
+    this.onError = onError
+    const workerCode = `
+      self.onmessage = (e) => {
+        const { id, task } = e.data
+        
+        try {
+          const result = analyze(task)
+          self.postMessage({ id, result })
+        } catch (error) {
+          self.postMessage({ id, error: error.message })
+        }
+      }
+      
+      function analyze(task) {
+        const errors = []
+        const lines = task.code.split('\\n')
+        
+        lines.forEach((line, lineIndex) => {
+          if (line.includes('println!(')) {
+            const match = line.match(/println!\\(([^)]*)\\)/)
+            if (match && !match[1].startsWith('"')) {
+              errors.push({
+                message: 'println! requires a format string',
+                line: lineIndex + 1,
+                column: line.indexOf('println!') + 1,
+                severity: 'error'
+              })
+            }
+          }
+          
+          if (line.includes('fn ') && !line.includes('(')) {
+            errors.push({
+              message: 'Function missing parameter list',
+              line: lineIndex + 1,
+              column: line.indexOf('fn ') + 1,
+              severity: 'error'
+            })
+          }
+        })
+        
+        let braceCount = 0
+        lines.forEach((line, lineIndex) => {
+          braceCount += (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
+        })
+        
+        if (braceCount !== 0) {
+          errors.push({
+            message: braceCount > 0 ? 'Unmatched opening brace' : 'Unmatched closing brace',
+            line: lines.length,
+            column: 0,
+            severity: 'error'
+          })
+        }
+        
+        return { errors }
+      }
+    `
+    
+    try {
+      const blob = new Blob([workerCode], { type: 'application/javascript' })
+      const workerUrl = URL.createObjectURL(blob)
+      this.worker = new Worker(workerUrl)
+      
+      this.worker.onmessage = (e) => {
+        const { id, result, error } = e.data
+        const pending = this.messageQueue[id]
+        if (pending) {
+          if (error) {
+            pending.reject(new Error(error))
+          } else {
+            pending.resolve(result)
+          }
+          this.messageQueue.splice(id, 1)
+        }
+      }
+      this.worker.onerror = (e) => {
+        this.onError?.(`Worker init failed: ${e.message || 'unknown'}`)
+        this.ready = false
+      }
+      this.ready = true
+    } catch (e) {
+      this.onError?.(`Worker create failed: ${(e as Error).message}`)
+      this.ready = false
+    }
+  }
+
   isReady(): boolean {
-    return false
+    return this.ready && this.worker !== null
   }
 
   async analyze(task: AnalysisTask): Promise<AnalysisResult> {
-    throw new Error('Worker disabled - using fallback')
+    if (!this.worker || !this.ready) {
+      throw new Error('Worker not ready')
+    }
+
+    return new Promise((resolve, reject) => {
+      const id = this.messageQueue.length
+      this.messageQueue.push({ task, resolve, reject })
+      this.worker!.postMessage({ id, task })
+    })
   }
 
-  terminate(): void {}
+  terminate(): void {
+    if (this.worker) {
+      this.worker.terminate()
+      this.worker = null
+      this.ready = false
+    }
+  }
 }
 
 export class ThreadManager {
@@ -39,13 +149,18 @@ export class ThreadManager {
   }> = []
   private workerCount: number = 4
   private roundRobin: number = 0
+  private onError: ((msg: string) => void) | null = null
+
+  setErrorHandler(handler: (msg: string) => void) {
+    this.onError = handler
+  }
 
   async initialize(workerCount: number = 4): Promise<void> {
     this.workerCount = workerCount
     this.workers = []
 
     for (let i = 0; i < workerCount; i++) {
-      const worker = new AnalysisWorker()
+      const worker = new AnalysisWorker(this.onError ? (msg) => this.onError!(`Worker ${i}: ${msg}`) : undefined)
       this.workers.push(worker)
     }
 

@@ -290,6 +290,9 @@ onMounted(async () => {
   }
 
   logPanelRef.value?.addLog('info', '正在初始化多线程分析器...')
+  threadManager.setErrorHandler((msg) => {
+    logPanelRef.value?.addLog('info', msg)
+  })
   try {
     await threadManager.initialize(4)
     threadReady.value = true
