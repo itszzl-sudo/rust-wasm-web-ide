@@ -25,7 +25,8 @@ export async function initRustInterpreter(): Promise<void> {
     console.log(`[RustInterpreter] Testing ${DOMAINS.length} domains in parallel...`)
     const startTime = performance.now()
     
-    const wasmPath = '/wasm/rust_interpreter.js'
+    const base = window.location.hostname.includes('github.io') ? '/rust-wasm-web-ide' : ''
+    const wasmPath = `${base}/wasm/rust_interpreter.js`
     
     // 所有域名平等参与，取最快响应
     const results = await Promise.allSettled(
