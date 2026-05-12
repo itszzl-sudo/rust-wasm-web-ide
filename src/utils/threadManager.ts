@@ -27,9 +27,69 @@ class AnalysisWorker {
     reject: (error: Error) => void
   }> = []
 
-  constructor(workerPath: string) {
+  constructor() {
+    const workerCode = `
+      self.onmessage = (e) => {
+        const { id, task } = e.data
+        
+        try {
+          const result = analyze(task)
+          self.postMessage({ id, result })
+        } catch (error) {
+          self.postMessage({ id, error: error.message })
+        }
+      }
+      
+      function analyze(task) {
+        const errors = []
+        const lines = task.code.split('\\n')
+        
+        lines.forEach((line, lineIndex) => {
+          if (line.includes('println!(')) {
+            const match = line.match(/println!\\(([^)]*)\\)/)
+            if (match && !match[1].startsWith('"')) {
+              errors.push({
+                message: 'println! requires a format string',
+                line: lineIndex + 1,
+                column: line.indexOf('println!') + 1,
+                severity: 'error'
+              })
+            }
+          }
+          
+          if (line.includes('fn ') && !line.includes('(')) {
+            errors.push({
+              message: 'Function missing parameter list',
+              line: lineIndex + 1,
+              column: line.indexOf('fn ') + 1,
+              severity: 'error'
+            })
+          }
+        })
+        
+        let braceCount = 0
+        lines.forEach((line, lineIndex) => {
+          braceCount += (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
+        })
+        
+        if (braceCount !== 0) {
+          errors.push({
+            message: braceCount > 0 ? 'Unmatched opening brace' : 'Unmatched closing brace',
+            line: lines.length,
+            column: 0,
+            severity: 'error'
+          })
+        }
+        
+        return { errors }
+      }
+    `
+    
     try {
-      this.worker = new Worker(workerPath, { type: 'module' })
+      const blob = new Blob([workerCode], { type: 'application/javascript' })
+      const workerUrl = URL.createObjectURL(blob)
+      this.worker = new Worker(workerUrl)
+      
       this.worker.onmessage = (e) => {
         const { id, result, error } = e.data
         const pending = this.messageQueue[id]
@@ -92,7 +152,7 @@ export class ThreadManager {
     this.workers = []
 
     for (let i = 0; i < workerCount; i++) {
-      const worker = new AnalysisWorker('/src/workers/analyzer.worker.ts')
+      const worker = new AnalysisWorker()
       this.workers.push(worker)
     }
 
