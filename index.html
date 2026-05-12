@@ -5,6 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RUST WASM WEB IDE</title>
+    <script>
+      self.MonacoEnvironment = {
+        getWorker: function(_, label) {
+          var base = '/rust-wasm-web-ide/';
+          var workerPath = label === 'typescript' || label === 'javascript'
+            ? base + 'ts.worker.js'
+            : base + 'editor.worker.js';
+          return new Worker(workerPath, { type: 'classic' });
+        }
+      };
+    </script>
   </head>
   <body>
     <div id="app"></div>
