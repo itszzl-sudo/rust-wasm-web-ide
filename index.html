@@ -15,7 +15,7 @@
             var workerPath = label === 'typescript' || label === 'javascript'
               ? base + 'ts.worker.js'
               : base + 'editor.worker.js';
-            return new Worker(workerPath, { type: 'classic' });
+            return new Worker(workerPath, { type: 'module' });
           }
         };
       })();

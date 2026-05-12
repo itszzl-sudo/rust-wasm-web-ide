@@ -20,7 +20,7 @@
               ? base + 'ts.worker.js'
               : base + 'editor.worker.js';
             console.log('🌈 [Monaco] Loading worker:', workerPath);
-            return new Worker(workerPath, { type: 'classic' });
+            return new Worker(workerPath, { type: 'module' });
           }
         };
       })();
