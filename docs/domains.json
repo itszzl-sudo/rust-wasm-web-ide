@@ -1,5 +1,12 @@
 {
-  "mainDomain": "itszzl-sudo.github.io/rust-wasm-web-ide",
+  "github": {
+    "mainDomain": "itszzl-sudo.github.io/rust-wasm-web-ide",
+    "base": "/rust-wasm-web-ide/"
+  },
+  "cloudflare": {
+    "mainDomain": "rust-wasm-web-ide.pages.dev",
+    "base": "/"
+  },
   "subDomains": [
     "ide01.irisverse.org",
     "ide02.irisverse.org",
@@ -26,6 +33,6 @@
     "ide23.irisverse.org",
     "ide24.irisverse.org"
   ],
-  "description": "域名池配置 - 主域名和子域名地位平等",
+  "description": "双平台域名配置 - GitHub (已收录) + Cloudflare (更快)",
   "lastUpdated": "2026-05-12"
 }

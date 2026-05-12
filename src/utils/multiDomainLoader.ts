@@ -4,6 +4,14 @@ function getOptimalThreadCount(): number {
   return Math.min(cores, 8)
 }
 
+// 检测当前平台
+function detectPlatform(): 'github' | 'cloudflare' {
+  const hostname = window.location.hostname
+  if (hostname.includes('github.io')) return 'github'
+  if (hostname.includes('pages.dev') || hostname.includes('workers.dev')) return 'cloudflare'
+  return 'github'
+}
+
 // 从 /domains.json 加载配置
 let domainsCache: string[] | null = null
 
@@ -13,26 +21,31 @@ export async function loadDomains(): Promise<string[]> {
   }
   
   const threadCount = getOptimalThreadCount()
+  const platform = detectPlatform()
   
   try {
-    const response = await fetch('/rust-wasm-web-ide/domains.json')
+    const base = platform === 'cloudflare' ? '/' : '/rust-wasm-web-ide/'
+    const response = await fetch(base + 'domains.json')
     const config = await response.json()
-    const mainDomain = config.mainDomain
+    
+    const mainDomain = config[platform]?.mainDomain || config.mainDomain
     const allSubDomains = config.subDomains || []
     const subDomains = allSubDomains.slice(0, threadCount - 1)
     
     domainsCache = [mainDomain, ...subDomains]
-    console.log(`[Domains] Using ${domainsCache.length} domains (cores: ${navigator.hardwareConcurrency || 'unknown'}, threadCount: ${threadCount})`)
+    console.log(`[Domains] Platform: ${platform}, Using ${domainsCache.length} domains (cores: ${navigator.hardwareConcurrency || 'unknown'}, threadCount: ${threadCount})`)
     return domainsCache
   } catch (e) {
     console.warn('[Domains] Failed to load config, using defaults:', e)
     
-    const MAIN_DOMAIN = 'itszzl-sudo.github.io/rust-wasm-web-ide'
+    const MAIN_DOMAIN = platform === 'cloudflare' 
+      ? 'rust-wasm-web-ide.pages.dev'
+      : 'itszzl-sudo.github.io/rust-wasm-web-ide'
     const SUB_DOMAINS = Array.from({ length: threadCount - 1 }, (_, i) => 
       `ide${String(i + 1).padStart(2, '0')}.irisverse.org`
     )
     domainsCache = [MAIN_DOMAIN, ...SUB_DOMAINS]
-    console.log(`[Domains] Using ${domainsCache.length} domains (cores: ${navigator.hardwareConcurrency || 'unknown'}, threadCount: ${threadCount})`)
+    console.log(`[Domains] Platform: ${platform}, Using ${domainsCache.length} domains (cores: ${navigator.hardwareConcurrency || 'unknown'}, threadCount: ${threadCount})`)
     return domainsCache
   }
 }
@@ -44,7 +57,10 @@ export function getDomains(): string[] {
   }
   
   const threadCount = getOptimalThreadCount()
-  const MAIN_DOMAIN = 'itszzl-sudo.github.io/rust-wasm-web-ide'
+  const platform = detectPlatform()
+  const MAIN_DOMAIN = platform === 'cloudflare' 
+    ? 'rust-wasm-web-ide.pages.dev'
+    : 'itszzl-sudo.github.io/rust-wasm-web-ide'
   const SUB_DOMAINS = Array.from({ length: threadCount - 1 }, (_, i) => 
     `ide${String(i + 1).padStart(2, '0')}.irisverse.org`
   )
