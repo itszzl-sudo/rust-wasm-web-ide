@@ -1571,6 +1571,32 @@ impl Interpreter {
         }
     }
 
+    pub fn has_function(&self, name: &str) -> bool {
+        self.functions.contains_key(name)
+    }
+
+    pub fn call_function(&mut self, name: &str, args: &[Value]) -> Result<Value, String> {
+        if let Some((params, body)) = self.functions.get(name).cloned() {
+            let old_globals = self.globals.clone();
+            for (param, arg_val) in params.iter().zip(args.iter()) {
+                self.globals.insert(param.clone(), arg_val.clone());
+            }
+            let mut result = Value::Nil;
+            for stmt in &body {
+                if let Stmt::Return(Some(expr)) = stmt {
+                    result = self.evaluate(expr)?;
+                    break;
+                } else {
+                    self.execute_stmt(stmt)?;
+                }
+            }
+            self.globals = old_globals;
+            Ok(result)
+        } else {
+            Err(format!("Undefined function: {}", name))
+        }
+    }
+
     pub fn get_output(&self) -> String {
         self.output.clone()
     }
@@ -1605,17 +1631,37 @@ pub fn interpret_rust_code(code: &str) -> JsValue {
     };
     
     let mut interpreter = Interpreter::new();
-    let result = match interpreter.interpret(&statements) {
-        Ok(_) => InterpretResult {
+    
+    // First pass: register all functions
+    if let Err(e) = interpreter.interpret(&statements) {
+        let result = InterpretResult {
+            output: String::new(),
+            error: Some(format!("Parse error: {}", e)),
+            execution_time: start.elapsed().as_millis() as f64,
+        };
+        return serde_wasm_bindgen::to_value(&result).unwrap();
+    }
+    
+    // Second pass: call main() if it exists
+    let result = if interpreter.has_function("main") {
+        match interpreter.call_function("main", &[]) {
+            Ok(_) => InterpretResult {
+                output: interpreter.get_output(),
+                error: None,
+                execution_time: start.elapsed().as_millis() as f64,
+            },
+            Err(e) => InterpretResult {
+                output: interpreter.get_output(),
+                error: Some(format!("Runtime error: {}", e)),
+                execution_time: start.elapsed().as_millis() as f64,
+            },
+        }
+    } else {
+        InterpretResult {
             output: interpreter.get_output(),
             error: None,
             execution_time: start.elapsed().as_millis() as f64,
-        },
-        Err(e) => InterpretResult {
-            output: interpreter.get_output(),
-            error: Some(format!("Runtime error: {}", e)),
-            execution_time: start.elapsed().as_millis() as f64,
-        },
+        }
     };
     serde_wasm_bindgen::to_value(&result).unwrap()
 }
