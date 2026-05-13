@@ -31,6 +31,10 @@
         <span class="icon">⬇</span>
         <span class="text">WASM</span>
       </button>
+      <button class="toolbar-btn run-wasm-btn" @click="$emit('runWasm')" title="运行 WASM">
+        <span class="icon">⚡</span>
+        <span class="text">运行WASM</span>
+      </button>
     </div>
     <div class="toolbar-right">
       <a class="github-link" href="https://github.com/itszzl-sudo/rust-wasm-web-ide" target="_blank" rel="noopener">
@@ -72,6 +76,7 @@ defineEmits<{
   (e: 'parallelCheck'): void
   (e: 'download'): void
   (e: 'compile'): void
+  (e: 'runWasm'): void
 }>()
 
 const { t, locale } = useI18n()
@@ -152,6 +157,30 @@ const toggleLanguage = () => {
 
 .run-btn:active {
   background-color: #2d6e2a;
+}
+
+.compile-btn {
+  background-color: #6b4fa0;
+}
+
+.compile-btn:hover {
+  background-color: #8b6bc0;
+}
+
+.compile-btn:active {
+  background-color: #5a3d8a;
+}
+
+.run-wasm-btn {
+  background-color: #c50;
+}
+
+.run-wasm-btn:hover {
+  background-color: #e60;
+}
+
+.run-wasm-btn:active {
+  background-color: #a40;
 }
 
 .icon {

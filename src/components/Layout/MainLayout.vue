@@ -12,6 +12,7 @@
         @parallelCheck="handleParallelCheck"
         @download="handleDownload"
         @compile="handleCompile"
+        @runWasm="handleRunWasm"
       />
     </div>
     <div class="content-container">
@@ -219,6 +220,9 @@ const handleCompile = async () => {
       logPanelRef.value?.addLog('info', `WASM: ${result.stats.wasmBytes} 字节`)
       logPanelRef.value?.addLog('info', `耗时: ${result.stats.compileTime.toFixed(0)}ms`)
       
+      // Store compiled WASM for later execution
+      lastCompiledWasm.value = result.wasm
+      
       logPanelRef.value?.addLog('info', '\n--- WAT 代码 ---')
       result.wat.split('\n').slice(0, 20).forEach(line => {
         logPanelRef.value?.addLog('info', line)
@@ -243,6 +247,29 @@ const handleCompile = async () => {
     }
   } catch (e) {
     logPanelRef.value?.addLog('error', `编译错误: ${(e as Error).message}`)
+  }
+}
+
+const lastCompiledWasm = ref<Uint8Array | null>(null)
+
+const handleRunWasm = async () => {
+  if (!lastCompiledWasm.value) {
+    logPanelRef.value?.addLog('info', '尚未编译 WASM，正在编译...')
+    await handleCompile()
+    if (!lastCompiledWasm.value) {
+      logPanelRef.value?.addLog('error', '编译失败，无法运行 WASM')
+      return
+    }
+  }
+  
+  logPanelRef.value?.addLog('info', '开始运行编译后的 WASM...')
+  
+  try {
+    const result = await runCompiledWasm(lastCompiledWasm.value, 'main', [])
+    logPanelRef.value?.addLog('info', `✓ WASM 运行成功`)
+    logPanelRef.value?.addLog('info', `返回值: ${result}`)
+  } catch (e) {
+    logPanelRef.value?.addLog('error', `WASM 运行失败: ${(e as Error).message}`)
   }
 }
 
