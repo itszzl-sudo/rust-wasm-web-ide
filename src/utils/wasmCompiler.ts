@@ -16,10 +16,24 @@ let wabtModule: any = null
 async function loadWabt() {
   if (wabtModule) return wabtModule
   
-  const wabtUrl = 'https://cdn.jsdelivr.net/npm/wabt@1.0.32/index.js'
-  const module = await import(/* @vite-ignore */ wabtUrl)
-  wabtModule = await module.default()
-  return wabtModule
+  try {
+    const wabtUrl = 'https://cdn.jsdelivr.net/npm/wabt@1.0.32/index.js'
+    const module = await import(/* @vite-ignore */ wabtUrl)
+    
+    // Handle different module export formats
+    if (typeof module.default === 'function') {
+      wabtModule = await module.default()
+    } else if (module.default && typeof module.default === 'object') {
+      wabtModule = module.default
+    } else {
+      wabtModule = module
+    }
+    
+    return wabtModule
+  } catch (e) {
+    console.error('Failed to load wabt:', e)
+    throw new Error(`Failed to load wabt.js: ${(e as Error).message}`)
+  }
 }
 
 export async function compileRustToWasm(rustCode: string): Promise<CompileResult> {
