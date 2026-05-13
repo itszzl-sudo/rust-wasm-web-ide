@@ -102,6 +102,10 @@ pub enum Expr {
     StringLiteral(String),
     Bool(bool),
     Identifier(String),
+    Assign {
+        name: String,
+        value: Box<Expr>,
+    },
     Binary {
         left: Box<Expr>,
         op: Token,
@@ -1003,7 +1007,18 @@ impl Parser {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, String> {
-        self.parse_comparison()
+        let expr = self.parse_comparison()?;
+        
+        // Check for assignment after parsing primary expression
+        if matches!(self.current, Token::Equal) {
+            if let Expr::Identifier(name) = expr {
+                self.advance()?;
+                let value = self.parse_expr()?;
+                return Ok(Expr::Assign { name, value: Box::new(value) });
+            }
+        }
+        
+        Ok(expr)
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, String> {
@@ -1421,6 +1436,11 @@ impl Interpreter {
             Expr::Bool(b) => Ok(Value::Bool(*b)),
             Expr::Identifier(name) => {
                 self.globals.get(name).cloned().ok_or_else(|| format!("Undefined variable: {}", name))
+            }
+            Expr::Assign { name, value } => {
+                let val = self.evaluate(value)?;
+                self.globals.insert(name.clone(), val.clone());
+                Ok(val)
             }
             Expr::Binary { left, op, right } => {
                 let left_val = self.evaluate(left)?;
