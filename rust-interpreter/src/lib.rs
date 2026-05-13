@@ -1605,7 +1605,7 @@ impl Interpreter {
 #[wasm_bindgen]
 pub fn interpret_rust_code(code: &str) -> JsValue {
     console_error_panic_hook::set_once();
-    let start = std::time::Instant::now();
+    let start = js_sys::Date::now();
     
     let mut parser = match Parser::new(code) {
         Ok(p) => p,
@@ -1638,7 +1638,7 @@ pub fn interpret_rust_code(code: &str) -> JsValue {
         let result = InterpretResult {
             output: String::new(),
             error: Some(format!("Parse error: {}", e)),
-            execution_time: start.elapsed().as_millis() as f64,
+            execution_time: js_sys::Date::now() - start,
         };
         return serde_wasm_bindgen::to_value(&result).unwrap();
     }
@@ -1649,19 +1649,19 @@ pub fn interpret_rust_code(code: &str) -> JsValue {
             Ok(_) => InterpretResult {
                 output: interpreter.get_output(),
                 error: None,
-                execution_time: start.elapsed().as_millis() as f64,
+                execution_time: js_sys::Date::now() - start,
             },
             Err(e) => InterpretResult {
                 output: interpreter.get_output(),
                 error: Some(format!("Runtime error: {}", e)),
-                execution_time: start.elapsed().as_millis() as f64,
+                execution_time: js_sys::Date::now() - start,
             },
         }
     } else {
         InterpretResult {
             output: interpreter.get_output(),
             error: None,
-            execution_time: start.elapsed().as_millis() as f64,
+            execution_time: js_sys::Date::now() - start,
         }
     };
     serde_wasm_bindgen::to_value(&result).unwrap()
