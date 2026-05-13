@@ -52,6 +52,12 @@ pub enum Token {
     OrOr,
     Bang,
     DoubleColon,
+    PlusEqual,      // +=
+    MinusEqual,     // -=
+    StarEqual,      // *=
+    SlashEqual,     // /=
+    PercentEqual,   // %=
+    DotDotEqual,    // ..=
     
     // Delimiters
     LeftParen,
@@ -302,6 +308,14 @@ impl Lexer {
                 break;
             }
         }
+        // Skip type suffix like i32, f64, u8, etc.
+        while let Some(ch) = self.peek() {
+            if ch.is_ascii_alphabetic() || ch == '_' {
+                self.advance();
+            } else {
+                break;
+            }
+        }
         s.parse().unwrap_or(0.0)
     }
 
@@ -373,19 +387,54 @@ impl Lexer {
                         _ => Ok(Token::Identifier(id)),
                     }
                 }
-                '+' => { self.advance(); Ok(Token::Plus) }
+                '+' => {
+                    self.advance();
+                    if self.peek() == Some('=') {
+                        self.advance();
+                        Ok(Token::PlusEqual)
+                    } else {
+                        Ok(Token::Plus)
+                    }
+                }
                 '-' => {
                     self.advance();
                     if self.peek() == Some('>') {
                         self.advance();
                         Ok(Token::Arrow)
+                    } else if self.peek() == Some('=') {
+                        self.advance();
+                        Ok(Token::MinusEqual)
                     } else {
                         Ok(Token::Minus)
                     }
                 }
-                '*' => { self.advance(); Ok(Token::Star) }
-                '/' => { self.advance(); Ok(Token::Slash) }
-                '%' => { self.advance(); Ok(Token::Percent) }
+                '*' => {
+                    self.advance();
+                    if self.peek() == Some('=') {
+                        self.advance();
+                        Ok(Token::StarEqual)
+                    } else {
+                        Ok(Token::Star)
+                    }
+                }
+                '/' => {
+                    self.advance();
+                    if self.peek() == Some('=') {
+                        self.advance();
+                        Ok(Token::SlashEqual)
+                    } else {
+                        Ok(Token::Slash)
+                    }
+                }
+                '%' => {
+                    self.advance();
+                    if self.peek() == Some('=') {
+                        self.advance();
+                        Ok(Token::PercentEqual)
+                    } else {
+                        Ok(Token::Percent)
+                    }
+                }
                 '!' => {
                     self.advance();
                     if self.peek() == Some('=') {
@@ -452,7 +501,12 @@ impl Lexer {
                     self.advance();
                     if self.peek() == Some('.') {
                         self.advance();
-                        Ok(Token::DotDot)
+                        if self.peek() == Some('=') {
+                            self.advance();
+                            Ok(Token::DotDotEqual)
+                        } else {
+                            Ok(Token::DotDot)
+                        }
                     } else {
                         Ok(Token::Dot)
                     }
