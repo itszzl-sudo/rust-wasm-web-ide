@@ -88,8 +88,33 @@ edition = "2021"
 
 [dependencies]
 `,
-      'src/main.rs': `fn main() {
-    println!("Hello, Rust!");
+      'src/main.rs': `// ========================================
+// Rust WASM Web IDE - 当前限制说明
+// ========================================
+// 
+// 【已支持】
+// ✓ 基本语法：fn, let, if/else, while, for, match
+// ✓ println! 宏、结构体、枚举
+// ✓ 类型注解（let x: i32 = 5）
+// ✓ 后缀类型（5i32, 1.0f64）
+// ✓ 变量赋值（x = 21）
+// ✓ 复合赋值（+=, -=, *=, /=）
+// 
+// 【未支持】
+// ✗ 完整类型检查（请用 rust-analyzer）
+// ✗ 借用检查和生命周期
+// ✗ 宏展开（vec![], format!）
+// ✗ 闭包（|x| x + 1）
+// ✗ 错误处理（Result, Option）
+// 
+// 【功能说明】
+// • 执行：解释器直接运行（快速）
+// • 编译：Rust → WAT → WASM（实验性）
+// • 类型检查：rust-analyzer（完整）
+// ========================================
+
+fn main() {
+    println!("Hello, Rust WASM!");
     
     let x = 42;
     println!("x = {}", x);

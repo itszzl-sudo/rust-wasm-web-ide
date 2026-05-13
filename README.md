@@ -1,10 +1,13 @@
-# Rust Web IDE
+# Rust WASM Web IDE
 
 [English](README.en.md) | 简体中文
 
 浏览器内 Rust 代码编辑、解释执行与编译环境，零安装、即时运行。
 
-**[在线演示](https://itszzl-sudo.github.io/rust-wasm-web-ide/)**
+## 在线演示
+
+- **Cloudflare Pages（推荐）**: https://rust-wasm-web-ide.pages.dev
+- **GitHub Pages**: https://itszzl-sudo.github.io/rust-wasm-web-ide/
 
 ## 特性
 

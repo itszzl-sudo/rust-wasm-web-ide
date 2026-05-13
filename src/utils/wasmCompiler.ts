@@ -128,7 +128,7 @@ export async function instantiateWasm(
       log: (ptr: number, len: number) => {
         const bytes = new Uint8Array(memory.buffer, ptr, len)
         const str = new TextDecoder('utf-8').decode(bytes)
-        console.log('🌈', str)
+        console.log(str)
       }
     }
   }

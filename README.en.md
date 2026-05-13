@@ -1,10 +1,13 @@
-# Rust Web IDE
+# Rust WASM Web IDE
 
 English | [简体中文](README.md)
 
 Browser-based Rust code editing, interpretation, and compilation environment. Zero installation, instant execution.
 
-**[Live Demo](https://itszzl-sudo.github.io/rust-wasm-web-ide/)**
+## Live Demo
+
+- **Cloudflare Pages (Recommended)**: https://rust-wasm-web-ide.pages.dev
+- **GitHub Pages**: https://itszzl-sudo.github.io/rust-wasm-web-ide/
 
 ## Features
 

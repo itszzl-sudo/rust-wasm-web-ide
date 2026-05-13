@@ -22,12 +22,12 @@ export async function initRustInterpreter(): Promise<void> {
   
   try {
     const buildTime = new Date().toLocaleString('zh-CN')
-    console.log(`🌈 ═══════════════════════════════════════`)
-    console.log(`🌈 RUST WASM WEB IDE`)
-    console.log(`🌈 Build: ${buildTime}`)
-    console.log(`🌈 Platform: ${window.location.hostname.includes('github.io') ? 'GitHub Pages' : 'Cloudflare Pages'}`)
-    console.log(`🌈 ═══════════════════════════════════════`)
-    console.log('🌈 [RustInterpreter] Loading Rust interpreter...')
+    console.log(`═══════════════════════════════════════`)
+    console.log(`RUST WASM WEB IDE`)
+    console.log(`Build: ${buildTime}`)
+    console.log(`Platform: ${window.location.hostname.includes('github.io') ? 'GitHub Pages' : 'Cloudflare Pages'}`)
+    console.log(`═══════════════════════════════════════`)
+    console.log('[RustInterpreter] Loading Rust interpreter...')
     const startTime = performance.now()
     
     const isGitHub = window.location.hostname.includes('github.io')
@@ -40,9 +40,9 @@ export async function initRustInterpreter(): Promise<void> {
     wasmModule = module
     
     const loadTime = performance.now() - startTime
-    console.log(`🌈 [RustInterpreter] ✓ Loaded in ${(loadTime / 1000).toFixed(2)}s`)
+    console.log(`[RustInterpreter] ✓ Loaded in ${(loadTime / 1000).toFixed(2)}s`)
   } catch (e) {
-    console.error('🌈 [RustInterpreter] Failed to load:', e)
+    console.error('[RustInterpreter] Failed to load:', e)
     throw e
   } finally {
     isLoading = false

@@ -3,7 +3,7 @@
     <div class="toolbar-left">
       <div class="logo">
         <span class="logo-icon">🦀</span>
-        <span class="logo-text">Rust Web IDE</span>
+        <span class="logo-text">Rust WASM Web IDE</span>
       </div>
     </div>
     <div class="toolbar-center">
