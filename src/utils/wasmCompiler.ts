@@ -17,18 +17,23 @@ async function loadWabt() {
   if (wabtModule) return wabtModule
   
   try {
+    // Load wabt.js from CDN using script tag
     const wabtUrl = 'https://cdn.jsdelivr.net/npm/wabt@1.0.32/index.js'
-    const module = await import(/* @vite-ignore */ wabtUrl)
     
-    // Handle different module export formats
-    if (typeof module.default === 'function') {
-      wabtModule = await module.default()
-    } else if (module.default && typeof module.default === 'object') {
-      wabtModule = module.default
-    } else {
-      wabtModule = module
+    // @ts-ignore
+    if (typeof window.WabtModule === 'undefined') {
+      const script = document.createElement('script')
+      script.src = wabtUrl
+      document.head.appendChild(script)
+      
+      await new Promise<void>((resolve, reject) => {
+        script.onload = () => resolve()
+        script.onerror = () => reject(new Error('Failed to load wabt.js'))
+      })
     }
     
+    // @ts-ignore
+    wabtModule = await window.WabtModule()
     return wabtModule
   } catch (e) {
     console.error('Failed to load wabt:', e)
