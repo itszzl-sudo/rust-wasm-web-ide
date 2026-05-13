@@ -1604,6 +1604,7 @@ impl Interpreter {
 
 #[wasm_bindgen]
 pub fn interpret_rust_code(code: &str) -> JsValue {
+    console_error_panic_hook::set_once();
     let start = std::time::Instant::now();
     
     let mut parser = match Parser::new(code) {
