@@ -23,9 +23,9 @@ export async function initRustInterpreter(): Promise<void> {
   try {
     const buildTime = new Date().toLocaleString('zh-CN')
     console.log(`═══════════════════════════════════════`)
-    console.log(`RUST WASM WEB IDE`)
-    console.log(`Build: ${buildTime}`)
-    console.log(`Platform: ${window.location.hostname.includes('github.io') ? 'GitHub Pages' : 'Cloudflare Pages'}`)
+    console.log(`🌈 RUST WASM WEB IDE`)
+    console.log(`🌈 Build: ${buildTime}`)
+    console.log(`🌈 Platform: ${window.location.hostname.includes('github.io') ? 'GitHub Pages' : 'Cloudflare Pages'}`)
     console.log(`═══════════════════════════════════════`)
     console.log('[RustInterpreter] Loading Rust interpreter...')
     const startTime = performance.now()
