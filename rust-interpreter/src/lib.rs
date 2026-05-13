@@ -836,6 +836,16 @@ impl Parser {
             _ => return Err("Expected identifier after let".to_string()),
         };
         self.advance()?;
+        
+        // Skip type annotation if present (e.g., `let x: i32 = 5;`)
+        if matches!(self.current, Token::Colon) {
+            self.advance()?;
+            // Skip type name (could be identifier or complex type)
+            while !matches!(self.current, Token::Equal | Token::Semicolon) {
+                self.advance()?;
+            }
+        }
+        
         let init = if matches!(self.current, Token::Equal) {
             self.advance()?;
             Some(self.parse_expr()?)
