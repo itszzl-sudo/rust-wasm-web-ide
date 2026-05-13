@@ -119,12 +119,16 @@ async function compileWatToWasm(wat: string): Promise<Uint8Array> {
 export async function instantiateWasm(
   wasmBinary: Uint8Array,
   imports: WebAssembly.Imports = {}
-): Promise<WebAssembly.Instance> {
+): Promise<{ instance: WebAssembly.Instance; memory: WebAssembly.Memory }> {
+  const memory = new WebAssembly.Memory({ initial: 10 })
+  
   const defaultImports = {
     env: {
-      memory: new WebAssembly.Memory({ initial: 1 }),
+      memory,
       log: (ptr: number, len: number) => {
-        console.log(`[WASM log] ptr=${ptr}, len=${len}`)
+        const bytes = new Uint8Array(memory.buffer, ptr, len)
+        const str = new TextDecoder('utf-8').decode(bytes)
+        console.log('🌈', str)
       }
     }
   }
@@ -135,7 +139,7 @@ export async function instantiateWasm(
   }
   
   const { instance } = await WebAssembly.instantiate(wasmBinary, mergedImports)
-  return instance
+  return { instance, memory }
 }
 
 export async function runCompiledWasm(
@@ -143,7 +147,7 @@ export async function runCompiledWasm(
   functionName: string = 'main',
   args: number[] = []
 ): Promise<any> {
-  const instance = await instantiateWasm(wasmBinary)
+  const { instance } = await instantiateWasm(wasmBinary)
   
   if (!(instance.exports as any)[functionName]) {
     throw new Error(`Function '${functionName}' not found in WASM exports`)
