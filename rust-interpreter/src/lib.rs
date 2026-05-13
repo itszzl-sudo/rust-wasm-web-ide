@@ -263,14 +263,17 @@ impl Lexer {
         }
     }
 
-    fn skip_comment(&mut self) {
+    fn skip_comment(&mut self) -> bool {
         if self.peek() == Some('/') && self.input.get(self.pos + 1) == Some(&'/') {
             while let Some(ch) = self.peek() {
+                self.advance();
                 if ch == '\n' {
                     break;
                 }
-                self.advance();
             }
+            true
+        } else {
+            false
         }
     }
 
@@ -343,8 +346,13 @@ impl Lexer {
     }
 
     pub fn next_token(&mut self) -> Result<Token, String> {
-        self.skip_whitespace();
-        self.skip_comment();
+        // Skip all whitespace and comments
+        loop {
+            self.skip_whitespace();
+            if !self.skip_comment() {
+                break;
+            }
+        }
         self.skip_whitespace();
 
         match self.peek() {
