@@ -225,10 +225,20 @@ export class RustToWAT {
       const format = match[1]
       const args = match[2] ? match[2].split(',').map(a => a.trim()) : []
       
+      // Store the format string in data section
+      const offset = this.module.data.length * 100
+      this.module.data.push(`(data (i32.const ${offset}) "${format}\\00")`)
+      
       let wat = ''
+      // Push string offset and length for $log function
+      wat += `    i32.const ${offset}\n`
+      wat += `    i32.const ${format.length}\n`
+      
+      // Push additional arguments
       args.forEach(arg => {
         wat += this.convertExpression(arg)
       })
+      
       wat += `    call $log\n`
       return wat
     }
