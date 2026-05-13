@@ -308,12 +308,18 @@ impl Lexer {
                 break;
             }
         }
-        // Skip type suffix like i32, f64, u8, etc.
-        while let Some(ch) = self.peek() {
-            if ch.is_ascii_alphabetic() || ch == '_' {
-                self.advance();
-            } else {
-                break;
+        // Skip type suffix like i32, f64, u8, etc. (letter followed by optional digits)
+        if let Some(ch) = self.peek() {
+            if ch.is_ascii_alphabetic() {
+                self.advance(); // skip the type prefix (i, f, u, etc.)
+                // skip remaining digits of the type
+                while let Some(ch) = self.peek() {
+                    if ch.is_ascii_digit() || ch.is_ascii_alphabetic() || ch == '_' {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
             }
         }
         s.parse().unwrap_or(0.0)
