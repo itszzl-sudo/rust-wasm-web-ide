@@ -6,10 +6,38 @@ interface WATModule {
   data: string[]
 }
 
+interface StructField {
+  name: string
+  type: string
+  offset: number
+}
+
+interface StructDef {
+  name: string
+  fields: StructField[]
+  size: number
+}
+
+interface EnumVariant {
+  name: string
+  discriminant: number
+  hasData: boolean
+  dataType?: string
+}
+
+interface EnumDef {
+  name: string
+  variants: EnumVariant[]
+}
+
 export class RustToWAT {
   private module: WATModule
   private functionIndex: number = 0
   private localVars: Map<string, number> = new Map()
+  private structDefs: Map<string, StructDef> = new Map()
+  private enumDefs: Map<string, EnumDef> = new Map()
+  private memoryOffset: number = 0
+  private heapPointer: number = 1024
   
   constructor() {
     this.module = {
@@ -30,11 +58,113 @@ export class RustToWAT {
       data: []
     }
     this.functionIndex = 0
+    this.structDefs = new Map()
+    this.enumDefs = new Map()
+    this.memoryOffset = 0
+    this.heapPointer = 1024
     
     this.addDefaultImports()
+    this.parseDefinitions(rustCode)
     this.parseRustCode(rustCode)
     
     return this.generateWAT()
+  }
+  
+  private parseDefinitions(code: string) {
+    const lines = code.split('\n')
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      
+      if (line.startsWith('struct ')) {
+        this.parseStruct(lines, i)
+      } else if (line.startsWith('enum ')) {
+        this.parseEnum(lines, i)
+      }
+    }
+  }
+  
+  private parseStruct(lines: string[], startIndex: number): number {
+    const line = lines[startIndex].trim()
+    const match = line.match(/struct\s+(\w+)\s*\{?/)
+    
+    if (!match) return startIndex
+    
+    const structName = match[1]
+    const fields: StructField[] = []
+    let offset = 0
+    let i = startIndex + 1
+    
+    while (i < lines.length) {
+      const l = lines[i].trim()
+      
+      if (l === '}' || l.startsWith('}')) break
+      if (l.startsWith('//') || !l) {
+        i++
+        continue
+      }
+      
+      const fieldMatch = l.match(/(\w+)\s*:\s*(\w+)/)
+      if (fieldMatch) {
+        fields.push({
+          name: fieldMatch[1],
+          type: fieldMatch[2],
+          offset: offset
+        })
+        offset += 4
+      }
+      
+      i++
+    }
+    
+    this.structDefs.set(structName, {
+      name: structName,
+      fields,
+      size: offset
+    })
+    
+    return i
+  }
+  
+  private parseEnum(lines: string[], startIndex: number): number {
+    const line = lines[startIndex].trim()
+    const match = line.match(/enum\s+(\w+)\s*\{?/)
+    
+    if (!match) return startIndex
+    
+    const enumName = match[1]
+    const variants: EnumVariant[] = []
+    let discriminant = 0
+    let i = startIndex + 1
+    
+    while (i < lines.length) {
+      const l = lines[i].trim()
+      
+      if (l === '}' || l.startsWith('}')) break
+      if (l.startsWith('//') || !l) {
+        i++
+        continue
+      }
+      
+      const variantMatch = l.match(/(\w+)(?:\(([^)]+)\))?,?/)
+      if (variantMatch) {
+        variants.push({
+          name: variantMatch[1],
+          discriminant: discriminant++,
+          hasData: !!variantMatch[2],
+          dataType: variantMatch[2]?.trim()
+        })
+      }
+      
+      i++
+    }
+    
+    this.enumDefs.set(enumName, {
+      name: enumName,
+      variants
+    })
+    
+    return i
   }
   
   private addDefaultImports() {
@@ -529,6 +659,64 @@ export class RustToWAT {
     
     if (this.localVars.has(expr)) {
       return `    local.get $${expr}\n`
+    }
+    
+    // Struct field access: instance.field
+    if (expr.includes('.') && !expr.includes('..')) {
+      const parts = expr.split('.')
+      if (parts.length === 2) {
+        const [instance, field] = parts
+        const instanceType = this.localVars.get(instance)
+        
+        // Check if instance is a struct
+        for (const [structName, structDef] of this.structDefs.entries()) {
+          const fieldDef = structDef.fields.find(f => f.name === field)
+          if (fieldDef) {
+            let wat = ''
+            wat += `    local.get $${instance}\n`
+            wat += `    i32.const ${fieldDef.offset}\n`
+            wat += `    i32.add\n`
+            wat += `    i32.load\n`
+            return wat
+          }
+        }
+        
+        // Tuple index access: tuple.0
+        if (/^\d+$/.test(field)) {
+          const index = parseInt(field)
+          let wat = ''
+          wat += `    local.get $${instance}\n`
+          wat += `    i32.const ${index * 4}\n`
+          wat += `    i32.add\n`
+          wat += `    i32.load\n`
+          return wat
+        }
+      }
+    }
+    
+    // Enum variant construction: EnumName::Variant or EnumName::Variant(data)
+    if (expr.includes('::')) {
+      const match = expr.match(/(\w+)::(\w+)(?:\(([^)]+)\))?/)
+      if (match) {
+        const enumName = match[1]
+        const variantName = match[2]
+        const data = match[3]
+        
+        const enumDef = this.enumDefs.get(enumName)
+        if (enumDef) {
+          const variant = enumDef.variants.find(v => v.name === variantName)
+          if (variant) {
+            let wat = ''
+            wat += `    i32.const ${variant.discriminant}\n`
+            
+            if (data) {
+              wat += this.convertExpression(data)
+            }
+            
+            return wat
+          }
+        }
+      }
     }
     
     if (expr.includes('(') && expr.includes(')')) {
