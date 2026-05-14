@@ -181,6 +181,10 @@ export class RustToWAT {
         }
       } else if (line.startsWith('println!')) {
         wat += this.convertPrintln(line)
+      } else if (line.startsWith('match ')) {
+        const result = this.convertMatch(lines, i)
+        wat += result.wat
+        i = result.endIndex
       } else if (line.startsWith('for ')) {
         const result = this.convertForLoop(lines, i)
         wat += result.wat
@@ -206,6 +210,12 @@ export class RustToWAT {
           wat += this.convertExpression(expr)
           wat += `    local.set $${varName}\n`
         }
+      } else if (line.match(/^\w+\s*(\+=|-=|\*=|\/=|%=&)/)) {
+        wat += this.convertCompoundAssignment(line)
+      } else if (line === 'break;') {
+        wat += `    br $for_end_${startIndex}\n`
+      } else if (line === 'continue;') {
+        wat += `    br $for_start_${startIndex}\n`
       } else if (line && !line.startsWith('//') && !line.startsWith('#[') && !line.startsWith('}')) {
         if (!line.includes('{')) {
           wat += this.convertExpression(line)
@@ -216,6 +226,116 @@ export class RustToWAT {
     }
     
     return wat
+  }
+  
+  private convertCompoundAssignment(line: string): string {
+    const match = line.match(/(\w+)\s*(\+=|-=|\*=|\/=|%=)\s*(.+);/)
+    if (!match) return ''
+    
+    const varName = match[1]
+    const op = match[2]
+    const expr = match[3]
+    
+    let wat = ''
+    wat += `    local.get $${varName}\n`
+    wat += this.convertExpression(expr)
+    
+    switch (op) {
+      case '+=': wat += '    i32.add\n'; break
+      case '-=': wat += '    i32.sub\n'; break
+      case '*=': wat += '    i32.mul\n'; break
+      case '/=': wat += '    i32.div_s\n'; break
+      case '%=': wat += '    i32.rem_s\n'; break
+    }
+    
+    wat += `    local.set $${varName}\n`
+    return wat
+  }
+  
+  private convertMatch(lines: string[], startIndex: number): { wat: string, endIndex: number } {
+    const line = lines[startIndex].trim()
+    const matchExpr = line.match(/match\s+(.+)\s*\{/)
+    
+    if (!matchExpr) return { wat: '', endIndex: startIndex }
+    
+    const expr = matchExpr[1]
+    
+    // Find match body
+    let braceCount = 0
+    let i = startIndex
+    let started = false
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    const bodyLines = lines.slice(startIndex + 1, i)
+    
+    // Parse match arms
+    const arms: { pattern: string, body: string[] }[] = []
+    let currentPattern = ''
+    let currentBody: string[] = []
+    let armBraceCount = 0
+    let inArm = false
+    
+    for (const l of bodyLines) {
+      const trimmed = l.trim()
+      
+      if (trimmed.endsWith('=>') && !inArm) {
+        currentPattern = trimmed.replace(/\s*=>\s*$/, '').trim()
+        inArm = true
+        armBraceCount = 0
+      } else if (inArm) {
+        if (trimmed === '{') {
+          armBraceCount++
+        } else if (trimmed === '}') {
+          armBraceCount--
+          if (armBraceCount === 0) {
+            arms.push({ pattern: currentPattern, body: currentBody })
+            currentBody = []
+            inArm = false
+          }
+        } else if (trimmed.endsWith(',') && armBraceCount === 0) {
+          currentBody.push(trimmed.replace(/,\s*$/, ''))
+          arms.push({ pattern: currentPattern, body: currentBody })
+          currentBody = []
+          inArm = false
+        } else {
+          currentBody.push(trimmed)
+        }
+      }
+    }
+    
+    let wat = ''
+    wat += this.convertExpression(expr)
+    
+    for (let j = 0; j < arms.length; j++) {
+      const arm = arms[j]
+      
+      if (arm.pattern === '_') {
+        // Default case
+        wat += this.convertBody(arm.body)
+      } else {
+        wat += `    i32.const ${arm.pattern}\n`
+        wat += `    i32.eq\n`
+        wat += `    (if\n`
+        wat += `      (then\n`
+        wat += this.convertBody(arm.body)
+        wat += `      )\n`
+        wat += `    )\n`
+      }
+    }
+    
+    return { wat, endIndex: i }
   }
   
   private convertForLoop(lines: string[], startIndex: number): { wat: string, endIndex: number } {
@@ -448,6 +568,54 @@ export class RustToWAT {
     if (expr.includes('>=')) {
       const [left, right] = expr.split('>=').map(e => e.trim())
       return this.convertExpression(left) + this.convertExpression(right) + '    i32.ge_s\n'
+    }
+    
+    // Logical operators
+    if (expr.includes('&&')) {
+      const [left, right] = expr.split('&&').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.and\n'
+    }
+    if (expr.includes('||')) {
+      const [left, right] = expr.split('||').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.or\n'
+    }
+    if (expr.startsWith('!') && !expr.startsWith('!=')) {
+      const inner = expr.slice(1).trim()
+      return this.convertExpression(inner) + '    i32.eqz\n'
+    }
+    
+    // Bitwise operators
+    if (expr.includes('&') && !expr.includes('&&')) {
+      const [left, right] = expr.split('&').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.and\n'
+    }
+    if (expr.includes('|') && !expr.includes('||')) {
+      const [left, right] = expr.split('|').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.or\n'
+    }
+    if (expr.includes('^')) {
+      const [left, right] = expr.split('^').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.xor\n'
+    }
+    if (expr.includes('<<')) {
+      const [left, right] = expr.split('<<').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.shl\n'
+    }
+    if (expr.includes('>>')) {
+      const [left, right] = expr.split('>>').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.shr_s\n'
+    }
+    
+    // Modulo
+    if (expr.includes('%')) {
+      const [left, right] = expr.split('%').map(e => e.trim())
+      return this.convertExpression(left) + this.convertExpression(right) + '    i32.rem_s\n'
+    }
+    
+    // Unary minus
+    if (expr.startsWith('-')) {
+      const inner = expr.slice(1).trim()
+      return '    i32.const 0\n' + this.convertExpression(inner) + '    i32.sub\n'
     }
     
     if (expr.includes('+')) {
