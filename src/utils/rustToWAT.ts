@@ -358,6 +358,8 @@ export class RustToWAT {
         }
       } else if (line.startsWith('println!')) {
         wat += this.convertPrintln(line)
+      } else if (line.startsWith('panic!')) {
+        wat += this.convertPanic(line)
       } else if (line.startsWith('match ')) {
         const result = this.convertMatch(lines, i)
         wat += result.wat
@@ -372,6 +374,18 @@ export class RustToWAT {
         i = result.endIndex
       } else if (line.startsWith('while ')) {
         const result = this.convertWhileLoop(lines, i)
+        wat += result.wat
+        i = result.endIndex
+      } else if (line === 'loop {') {
+        const result = this.convertLoop(lines, i)
+        wat += result.wat
+        i = result.endIndex
+      } else if (line.startsWith('if let ')) {
+        const result = this.convertIfLet(lines, i)
+        wat += result.wat
+        i = result.endIndex
+      } else if (line.startsWith('while let ')) {
+        const result = this.convertWhileLet(lines, i)
         wat += result.wat
         i = result.endIndex
       } else if (line.startsWith('return ')) {
@@ -918,6 +932,153 @@ export class RustToWAT {
       return wat
     }
     return ''
+  }
+  
+  private convertPanic(line: string): string {
+    const match = line.match(/panic!\s*\(\s*"([^"]*)"\s*\)/)
+    if (match) {
+      const msg = match[1]
+      const offset = this.module.data.length * 100
+      this.module.data.push(`(data (i32.const ${offset}) "PANIC: ${msg}\\00")`)
+      
+      let wat = ''
+      wat += `    i32.const ${offset}\n`
+      wat += `    i32.const ${msg.length + 8}\n`
+      wat += `    call $log\n`
+      wat += `    unreachable\n`
+      return wat
+    }
+    return '    unreachable\n'
+  }
+  
+  private convertLoop(lines: string[], startIndex: number): { wat: string, endIndex: number } {
+    let braceCount = 0
+    let i = startIndex
+    let started = false
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    const bodyLines = lines.slice(startIndex + 1, i)
+    
+    let wat = ''
+    wat += `    (block $loop_end_${startIndex}\n`
+    wat += `      (loop $loop_start_${startIndex}\n`
+    wat += this.convertBody(bodyLines)
+    wat += `        br $loop_start_${startIndex}\n`
+    wat += `      )\n`
+    wat += `    )\n`
+    
+    return { wat, endIndex: i }
+  }
+  
+  private convertIfLet(lines: string[], startIndex: number): { wat: string, endIndex: number } {
+    const line = lines[startIndex].trim()
+    const match = line.match(/if let\s+(\w+)::(\w+)\s*=\s*(.+)\s*\{/)
+    
+    if (!match) return { wat: '', endIndex: startIndex }
+    
+    const enumName = match[1]
+    const variantName = match[2]
+    const expr = match[3]
+    
+    let braceCount = 0
+    let i = startIndex
+    let started = false
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    const bodyLines = lines.slice(startIndex + 1, i)
+    
+    const enumDef = this.enumDefs.get(enumName)
+    if (!enumDef) return { wat: '', endIndex: i }
+    
+    const variant = enumDef.variants.find(v => v.name === variantName)
+    if (!variant) return { wat: '', endIndex: i }
+    
+    let wat = ''
+    wat += this.convertExpression(expr)
+    wat += `    i32.const ${variant.discriminant}\n`
+    wat += `    i32.eq\n`
+    wat += `    (if\n`
+    wat += `      (then\n`
+    wat += this.convertBody(bodyLines)
+    wat += `      )\n`
+    wat += `    )\n`
+    
+    return { wat, endIndex: i }
+  }
+  
+  private convertWhileLet(lines: string[], startIndex: number): { wat: string, endIndex: number } {
+    const line = lines[startIndex].trim()
+    const match = line.match(/while let\s+(\w+)::(\w+)\s*=\s*(.+)\s*\{/)
+    
+    if (!match) return { wat: '', endIndex: startIndex }
+    
+    const enumName = match[1]
+    const variantName = match[2]
+    const expr = match[3]
+    
+    let braceCount = 0
+    let i = startIndex
+    let started = false
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    const bodyLines = lines.slice(startIndex + 1, i)
+    
+    const enumDef = this.enumDefs.get(enumName)
+    if (!enumDef) return { wat: '', endIndex: i }
+    
+    const variant = enumDef.variants.find(v => v.name === variantName)
+    if (!variant) return { wat: '', endIndex: i }
+    
+    let wat = ''
+    wat += `    (block $while_let_end_${startIndex}\n`
+    wat += `      (loop $while_let_start_${startIndex}\n`
+    wat += this.convertExpression(expr)
+    wat += `        i32.const ${variant.discriminant}\n`
+    wat += `        i32.eq\n`
+    wat += `        i32.eqz\n`
+    wat += `        br_if $while_let_end_${startIndex}\n`
+    wat += this.convertBody(bodyLines)
+    wat += `        br $while_let_start_${startIndex}\n`
+    wat += `      )\n`
+    wat += `    )\n`
+    
+    return { wat, endIndex: i }
   }
   
   private generateWAT(): string {
