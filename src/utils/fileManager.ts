@@ -121,7 +121,7 @@ export function useFileManager() {
 }
 
 export function useProjectManager() {
-  const { saveFile, loadFile, listFiles, createFile, deleteFile, renameFile } = useFileManager()
+  const { saveFile, loadFile, listFiles, createFile, deleteFile, renameFile, downloadFile, downloadWasm } = useFileManager()
 
   const projectFiles = ref<string[]>([])
   const activeFile = ref<string>()
