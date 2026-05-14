@@ -15,7 +15,8 @@ export default {
     singleThread: '单线程',
     interpreter: '解释器',
     playground: 'Playground',
-    wasm: 'WASM'
+    wasm: 'WASM',
+    generateWasm: '生成WASM'
   },
   editor: {
     placeholder: '在此输入 Rust 代码...',

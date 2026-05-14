@@ -27,14 +27,21 @@
         <span class="icon">▶</span>
         <span class="text">{{ t('toolbar.run') }}</span>
       </button>
-      <select class="executor-select" v-model="selectedExecutor" @change="onExecutorChange" :title="executorTooltip">
-        <option value="interpreter">{{ t('toolbar.interpreter') }}</option>
-        <option value="playground">{{ t('toolbar.playground') }}</option>
-        <option value="wasm">{{ t('toolbar.wasm') }}</option>
-      </select>
-      <button class="toolbar-btn compile-btn" @click="$emit('compile')" title="下载 WASM">
-        <span class="icon">⬇</span>
-        <span class="text">WASM</span>
+      
+      <div class="executor-switch" :title="executorTooltip">
+        <label class="switch-label">
+          <span class="switch-text" :class="{ active: !usePlayground }">Iris</span>
+          <div class="switch">
+            <input type="checkbox" v-model="usePlayground" @change="onExecutorChange">
+            <span class="slider"></span>
+          </div>
+          <span class="switch-text" :class="{ active: usePlayground }">Playground</span>
+        </label>
+      </div>
+      
+      <button class="toolbar-btn generate-wasm-btn" @click="$emit('generateWasm')" :title="generateWasmTooltip">
+        <span class="icon">⚙️</span>
+        <span class="text">{{ t('toolbar.generateWasm') }}</span>
       </button>
     </div>
     <div class="toolbar-right">
@@ -78,26 +85,30 @@ const emit = defineEmits<{
   (e: 'typeCheck'): void
   (e: 'parallelCheck'): void
   (e: 'download'): void
-  (e: 'compile'): void
-  (e: 'executorChange', executor: string): void
+  (e: 'generateWasm'): void
 }>()
 
 const { t, locale } = useI18n()
 
-const selectedExecutor = ref<string>(localStorage.getItem('rust_ide_executor') || 'interpreter')
+const usePlayground = ref<boolean>(localStorage.getItem('rust_ide_executor') === 'playground')
 
 const executorTooltip = computed(() => {
-  switch (selectedExecutor.value) {
-    case 'interpreter': return '本地解释器 (快速、离线)'
-    case 'playground': return 'Rust Playground API (完整编译器)'
-    case 'wasm': return 'WASM 编译器 (浏览器内编译)'
-    default: return ''
-  }
+  return usePlayground.value
+    ? 'Rust Playground: 官方 rustc 编译器 API\n• 完整语法支持（struct/enum/macro/trait）\n• 类型检查和错误提示\n• 需要网络连接'
+    : 'Iris Interpreter: 自研轻量级解释器 WASM (~70KB)\n• 即时解释执行，零延迟\n• 支持基本语法（fn/let/if/for/match）\n• 完全离线运行'
+})
+
+const generateWasmTooltip = computed(() => {
+  return '生成 WASM: Rust → WAT → WASM\n' +
+    '• 自研编译器，纯浏览器端执行\n' +
+    '• WAT (WebAssembly Text) 中间表示\n' +
+    '• 生成 .wasm 文件添加到文件列表\n' +
+    '• 当前支持：基本语法、算术运算、函数调用'
 })
 
 const onExecutorChange = () => {
-  localStorage.setItem('rust_ide_executor', selectedExecutor.value)
-  emit('executorChange', selectedExecutor.value)
+  const executor = usePlayground.value ? 'playground' : 'interpreter'
+  localStorage.setItem('rust_ide_executor', executor)
 }
 
 const toggleLanguage = () => {
@@ -190,31 +201,99 @@ const toggleLanguage = () => {
   background-color: #5a3d8a;
 }
 
-.executor-select {
-  padding: 6px 12px;
+.typecheck-btn {
+  background-color: #6b4fa0;
+}
+
+.typecheck-btn:hover {
+  background-color: #8b6bc0;
+}
+
+.typecheck-btn:active {
+  background-color: #5a3d8a;
+}
+
+.generate-wasm-btn {
+  background-color: #c50;
+}
+
+.generate-wasm-btn:hover {
+  background-color: #e60;
+}
+
+.generate-wasm-btn:active {
+  background-color: #a40;
+}
+
+.executor-switch {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
   background-color: #2d2d2d;
-  border: 1px solid #444;
   border-radius: 4px;
-  color: #ccc;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
   margin: 0 4px;
 }
 
-.executor-select:hover {
-  background-color: #3d3d3d;
-  border-color: #666;
+.switch-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
 }
 
-.executor-select:focus {
-  outline: none;
-  border-color: #0e639c;
+.switch-text {
+  font-size: 12px;
+  color: #888;
+  transition: color 0.2s;
 }
 
-.executor-select option {
-  background-color: #2d2d2d;
-  color: #ccc;
+.switch-text.active {
+  color: #fff;
+  font-weight: 600;
+}
+
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #0e639c;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #c50;
+}
+
+input:checked + .slider:before {
+  transform: translateX(16px);
 }
 
 .icon {

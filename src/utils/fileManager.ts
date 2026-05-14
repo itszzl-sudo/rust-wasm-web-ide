@@ -1,3 +1,5 @@
+import { ref, watch } from 'vue'
+
 const STORAGE_KEY_PREFIX = 'rust_ide_file_'
 const PROJECT_KEY = 'rust_ide_project'
 
@@ -22,7 +24,7 @@ export function useFileManager() {
 
   const loadFile = (path: string): string | null => {
     try {
-      return localStorage.getItem(STORAGE_FILE_PREFIX + path)
+      return localStorage.getItem(STORAGE_KEY_PREFIX + path)
     } catch (e) {
       console.error('Failed to load file:', e)
       return null
@@ -50,6 +52,15 @@ export function useFileManager() {
     return saveFile(path, content)
   }
 
+  const renameFile = (oldPath: string, newPath: string): boolean => {
+    const content = loadFile(oldPath)
+    if (content === null) return false
+    if (fileExists(newPath)) return false
+    
+    if (!saveFile(newPath, content)) return false
+    return deleteFile(oldPath)
+  }
+
   const listFiles = (): string[] => {
     const files: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
@@ -61,60 +72,77 @@ export function useFileManager() {
     return files.sort()
   }
 
+  const getFileType = (path: string): 'rust' | 'wasm' | 'toml' | 'other' => {
+    if (path.endsWith('.rs')) return 'rust'
+    if (path.endsWith('.wasm')) return 'wasm'
+    if (path.endsWith('.toml')) return 'toml'
+    return 'other'
+  }
+
+  const downloadFile = (path: string): void => {
+    const content = loadFile(path)
+    if (content === null) return
+    
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = path.split('/').pop() || path
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadWasm = (path: string, wasmBinary: Uint8Array): void => {
+    const blob = new Blob([wasmBinary], { type: 'application/wasm' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = path.split('/').pop() || path
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return {
     saveFile,
     loadFile,
     deleteFile,
     fileExists,
     createFile,
-    listFiles
+    renameFile,
+    listFiles,
+    getFileType,
+    downloadFile,
+    downloadWasm
   }
 }
 
-const STORAGE_FILE_PREFIX = STORAGE_KEY_PREFIX
-
 export function useProjectManager() {
-  const { saveFile, loadFile, listFiles, createFile } = useFileManager()
+  const { saveFile, loadFile, listFiles, createFile, deleteFile, renameFile } = useFileManager()
 
   const projectFiles = ref<string[]>([])
   const activeFile = ref<string>()
+  const autoSaveEnabled = ref(true)
 
   const createDefaultProject = (): void => {
     const defaultFiles = {
-      'Cargo.toml': `[package]
-name = "my-project"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-`,
-      'src/main.rs': `// ========================================
-// Rust WASM Web IDE - 当前限制说明
-// ========================================
+      'untitled.rs': `// Rust WASM Web IDE
 // 
-// 【已支持】
-// ✓ 基本语法：fn, let, if/else, while, for, match
-// ✓ println! 宏、结构体、枚举
-// ✓ 类型注解（let x: i32 = 5）
-// ✓ 后缀类型（5i32, 1.0f64）
-// ✓ 变量赋值（x = 21）
-// ✓ 复合赋值（+=, -=, *=, /=）
+// 执行器说明：
+// • Iris Interpreter: 本地 WASM 解释器，快速离线执行
+// • Rust Playground: 官方 rustc 编译器，完整语法支持
 // 
-// 【未支持】
-// ✗ 完整类型检查（请用 rust-analyzer）
-// ✗ 借用检查和生命周期
-// ✗ 宏展开（vec![], format!）
-// ✗ 闭包（|x| x + 1）
-// ✗ 错误处理（Result, Option）
+// 快捷键：
+// • Ctrl+S: 保存
+// • Ctrl+Enter: 运行
+// • Ctrl+Shift+F: 格式化
 // 
-// 【功能说明】
-// • 执行：解释器直接运行（快速）
-// • 编译：Rust → WAT → WASM（实验性）
-// • 类型检查：rust-analyzer（完整）
-// ========================================
 
 fn main() {
-    println!("Hello, Rust WASM!");
+    println!("Hello, Rust!");
     
     let x = 42;
     println!("x = {}", x);
@@ -149,13 +177,39 @@ fn main() {
 
     projectFiles.value = listFiles()
     if (projectFiles.value.length > 0 && !activeFile.value) {
+      const untitledRs = projectFiles.value.find(f => f === 'untitled.rs')
       const mainRs = projectFiles.value.find(f => f === 'src/main.rs')
-      activeFile.value = mainRs || projectFiles.value[0]
+      activeFile.value = untitledRs || mainRs || projectFiles.value[0]
     }
   }
 
   const setActiveFile = (filename: string): void => {
     activeFile.value = filename
+  }
+
+  const addFile = (path: string, content: string): boolean => {
+    if (!createFile(path, content)) return false
+    projectFiles.value = listFiles()
+    return true
+  }
+
+  const removeFile = (path: string): boolean => {
+    if (!deleteFile(path)) return false
+    projectFiles.value = listFiles()
+    if (activeFile.value === path) {
+      activeFile.value = projectFiles.value[0]
+    }
+    return true
+  }
+
+  const renameActiveFile = (newPath: string): boolean => {
+    if (!activeFile.value) return false
+    const oldPath = activeFile.value
+    
+    if (!renameFile(oldPath, newPath)) return false
+    projectFiles.value = listFiles()
+    activeFile.value = newPath
+    return true
   }
 
   const exportProject = (): Blob => {
@@ -177,11 +231,13 @@ fn main() {
   return {
     projectFiles,
     activeFile,
+    autoSaveEnabled,
     loadProject,
     setActiveFile,
+    addFile,
+    removeFile,
+    renameActiveFile,
     exportProject,
-    createFile
+    createFile: addFile
   }
 }
-
-import { ref } from 'vue'

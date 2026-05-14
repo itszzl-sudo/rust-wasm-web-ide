@@ -1,0 +1,15 @@
+{
+  "name": "rust-interpreter",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "rust_interpreter_bg.wasm",
+    "rust_interpreter.js",
+    "rust_interpreter.d.ts"
+  ],
+  "main": "rust_interpreter.js",
+  "types": "rust_interpreter.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

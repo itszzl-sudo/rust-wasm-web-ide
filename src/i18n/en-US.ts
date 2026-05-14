@@ -15,7 +15,8 @@ export default {
     singleThread: 'Single thread',
     interpreter: 'Interpreter',
     playground: 'Playground',
-    wasm: 'WASM'
+    wasm: 'WASM',
+    generateWasm: 'Generate WASM'
   },
   editor: {
     placeholder: 'Enter Rust code here...',

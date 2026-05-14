@@ -11,8 +11,7 @@
         @typeCheck="handleTypeCheck"
         @parallelCheck="handleParallelCheck"
         @download="handleDownload"
-        @compile="handleCompile"
-        @executorChange="handleExecutorChange"
+        @generateWasm="handleGenerateWasm"
       />
     </div>
     <div class="content-container">
@@ -21,6 +20,10 @@
           :files="projectFiles"
           :active-file="activeFile"
           @select="handleFileSelect"
+          @rename="handleFileRename"
+          @delete="handleFileDelete"
+          @download="handleFileDownload"
+          @runWasm="handleRunWasmFile"
         />
       </div>
       <div class="editor-container">
@@ -57,8 +60,8 @@ import { executeWithPlayground, formatPlaygroundOutput } from '@/utils/rustPlayg
 const editorRef = ref<InstanceType<typeof MonacoEditor>>()
 const logPanelRef = ref<InstanceType<typeof LogPanel>>()
 
-const { projectFiles, activeFile, setActiveFile, loadProject } = useProjectManager()
-const { saveFile, loadFile, createFile } = useFileManager()
+const { projectFiles, activeFile, setActiveFile, loadProject, addFile, removeFile, renameActiveFile } = useProjectManager()
+const { saveFile, loadFile, createFile, downloadFile, downloadWasm } = useFileManager()
 
 const currentCode = ref('')
 const interpreterReady = ref(false)
@@ -68,12 +71,10 @@ const currentExecutor = ref<string>(localStorage.getItem('rust_ide_executor') ||
 const lastCompiledWasm = ref<Uint8Array | null>(null)
 
 const handleRun = async () => {
-  const executor = currentExecutor.value
+  const executor = localStorage.getItem('rust_ide_executor') || 'interpreter'
   
   if (executor === 'playground') {
     await handleRunPlayground()
-  } else if (executor === 'wasm') {
-    await handleRunWasm()
   } else {
     await handleRunInterpreter()
   }
@@ -133,16 +134,47 @@ const handleRunPlayground = async () => {
   }
 }
 
-const handleExecutorChange = (executor: string) => {
-  currentExecutor.value = executor
-  logPanelRef.value?.addLog('info', `已切换执行器: ${executor}`)
-}
-
 const handleSave = () => {
   if (activeFile.value) {
     saveFile(activeFile.value, currentCode.value)
     logPanelRef.value?.addLog('info', `已保存: ${activeFile.value}`)
   }
+}
+
+const handleFileRename = (oldPath: string, newPath: string) => {
+  if (renameActiveFile(newPath)) {
+    logPanelRef.value?.addLog('info', `已重命名: ${oldPath} → ${newPath}`)
+  } else {
+    logPanelRef.value?.addLog('error', `重命名失败: ${newPath} 已存在`)
+  }
+}
+
+const handleFileDelete = (path: string) => {
+  if (confirm(`确定删除 ${path}？`)) {
+    if (removeFile(path)) {
+      logPanelRef.value?.addLog('info', `已删除: ${path}`)
+    } else {
+      logPanelRef.value?.addLog('error', `删除失败: ${path}`)
+    }
+  }
+}
+
+const handleFileDownload = (path: string) => {
+  const { downloadFile, downloadWasm } = useFileManager()
+  const content = loadFile(path)
+  if (content === null) return
+  
+  if (path.endsWith('.wasm')) {
+    try {
+      const wasmBinary = new Uint8Array(JSON.parse(content))
+      downloadWasm(path, wasmBinary)
+    } catch {
+      downloadFile(path)
+    }
+  } else {
+    downloadFile(path)
+  }
+  logPanelRef.value?.addLog('info', `已下载: ${path}`)
 }
 
 const handleFormat = async () => {
@@ -156,9 +188,13 @@ const handleFormat = async () => {
 }
 
 const handleNewFile = () => {
-  const filename = `src/new_${Date.now()}.rs`
-  createFile(filename, '// New Rust file\nfn main() {\n    println!("Hello, Rust!");\n}\n')
-  loadProject()
+  const filename = `untitled_${Date.now()}.rs`
+  if (addFile(filename, '// New Rust file\nfn main() {\n    println!("Hello, Rust!");\n}\n')) {
+    setActiveFile(filename)
+    logPanelRef.value?.addLog('info', `已创建: ${filename}`)
+  } else {
+    logPanelRef.value?.addLog('error', `创建失败: ${filename} 已存在`)
+  }
 }
 
 const handleTypeCheck = async () => {
@@ -265,7 +301,6 @@ const handleCompile = async () => {
       logPanelRef.value?.addLog('info', `WASM: ${result.stats.wasmBytes} 字节`)
       logPanelRef.value?.addLog('info', `耗时: ${result.stats.compileTime.toFixed(0)}ms`)
       
-      // Store compiled WASM for later execution
       lastCompiledWasm.value = result.wasm
       
       logPanelRef.value?.addLog('info', '\n--- WAT 代码 ---')
@@ -292,6 +327,57 @@ const handleCompile = async () => {
     }
   } catch (e) {
     logPanelRef.value?.addLog('error', `编译错误: ${(e as Error).message}`)
+  }
+}
+
+const handleGenerateWasm = async () => {
+  if (!activeFile.value || !activeFile.value.endsWith('.rs')) {
+    logPanelRef.value?.addLog('error', '请先选择一个 .rs 文件')
+    return
+  }
+  
+  logPanelRef.value?.addLog('info', '[生成WASM] 开始编译...')
+  
+  try {
+    const result = await compileRustToWasm(currentCode.value)
+    
+    if (result.success && result.wasm) {
+      const wasmFileName = activeFile.value.replace(/\.rs$/, '.wasm')
+      const wasmContent = JSON.stringify(Array.from(result.wasm))
+      
+      if (addFile(wasmFileName, wasmContent)) {
+        logPanelRef.value?.addLog('info', `✓ 已生成: ${wasmFileName}`)
+        logPanelRef.value?.addLog('info', `  WAT: ${result.stats.watLines} 行`)
+        logPanelRef.value?.addLog('info', `  WASM: ${result.stats.wasmBytes} 字节`)
+        logPanelRef.value?.addLog('info', `  耗时: ${result.stats.compileTime.toFixed(0)}ms`)
+      } else {
+        logPanelRef.value?.addLog('error', `文件已存在: ${wasmFileName}`)
+      }
+    } else {
+      logPanelRef.value?.addLog('error', `编译失败: ${result.error}`)
+    }
+  } catch (e) {
+    logPanelRef.value?.addLog('error', `生成失败: ${(e as Error).message}`)
+  }
+}
+
+const handleRunWasmFile = async (wasmPath: string) => {
+  const content = loadFile(wasmPath)
+  if (!content) {
+    logPanelRef.value?.addLog('error', `无法加载: ${wasmPath}`)
+    return
+  }
+  
+  logPanelRef.value?.addLog('info', `[试运行] ${wasmPath}`)
+  
+  try {
+    const wasmArray = JSON.parse(content)
+    const wasmBinary = new Uint8Array(wasmArray)
+    const result = await runCompiledWasm(wasmBinary, 'main', [])
+    logPanelRef.value?.addLog('info', `✓ 运行成功`)
+    logPanelRef.value?.addLog('info', `返回值: ${result}`)
+  } catch (e) {
+    logPanelRef.value?.addLog('error', `运行失败: ${(e as Error).message}`)
   }
 }
 
