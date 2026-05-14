@@ -12,7 +12,7 @@
         @parallelCheck="handleParallelCheck"
         @download="handleDownload"
         @compile="handleCompile"
-        @runWasm="handleRunWasm"
+        @executorChange="handleExecutorChange"
       />
     </div>
     <div class="content-container">
@@ -52,6 +52,7 @@ import { gpuExecutor } from '@/utils/gpuExecutor'
 import { threadManager } from '@/utils/threadManager'
 import { parallelSyntaxCheck, parallelAnalyze, interpreterPool } from '@/utils/parallelInterpreter'
 import { compileRustToWasm, runCompiledWasm } from '@/utils/wasmCompiler'
+import { executeWithPlayground, formatPlaygroundOutput } from '@/utils/rustPlayground'
 
 const editorRef = ref<InstanceType<typeof MonacoEditor>>()
 const logPanelRef = ref<InstanceType<typeof LogPanel>>()
@@ -63,14 +64,28 @@ const currentCode = ref('')
 const interpreterReady = ref(false)
 const gpuReady = ref(false)
 const threadReady = ref(false)
+const currentExecutor = ref<string>(localStorage.getItem('rust_ide_executor') || 'interpreter')
+const lastCompiledWasm = ref<Uint8Array | null>(null)
 
 const handleRun = async () => {
+  const executor = currentExecutor.value
+  
+  if (executor === 'playground') {
+    await handleRunPlayground()
+  } else if (executor === 'wasm') {
+    await handleRunWasm()
+  } else {
+    await handleRunInterpreter()
+  }
+}
+
+const handleRunInterpreter = async () => {
   if (!interpreterReady.value) {
     logPanelRef.value?.addLog('error', 'Rust 解释器尚未初始化，请稍候...')
     return
   }
   
-  logPanelRef.value?.addLog('info', '开始执行代码...')
+  logPanelRef.value?.addLog('info', '[解释器] 开始执行代码...')
   logPanelRef.value?.addLog('info', `代码行数: ${currentCode.value.split('\n').length}`)
   
   try {
@@ -91,6 +106,36 @@ const handleRun = async () => {
   } catch (e) {
     logPanelRef.value?.addLog('error', `执行失败: ${(e as Error).message}`)
   }
+}
+
+const handleRunPlayground = async () => {
+  logPanelRef.value?.addLog('info', '[Playground] 开始编译和执行...')
+  logPanelRef.value?.addLog('info', `代码行数: ${currentCode.value.split('\n').length}`)
+  
+  try {
+    const result = await executeWithPlayground(
+      currentCode.value,
+      { channel: 'stable', edition: '2021', mode: 'debug' },
+      (progress, message) => {
+        logPanelRef.value?.addLog('info', `[${progress}%] ${message}`)
+      }
+    )
+    
+    const output = formatPlaygroundOutput(result)
+    output.split('\n').forEach(line => {
+      if (line.trim()) {
+        const logType = line.includes('error') ? 'error' : line.includes('warning') ? 'warn' : 'info'
+        logPanelRef.value?.addLog(logType, line)
+      }
+    })
+  } catch (e) {
+    logPanelRef.value?.addLog('error', `Playground 执行失败: ${(e as Error).message}`)
+  }
+}
+
+const handleExecutorChange = (executor: string) => {
+  currentExecutor.value = executor
+  logPanelRef.value?.addLog('info', `已切换执行器: ${executor}`)
 }
 
 const handleSave = () => {
@@ -250,11 +295,9 @@ const handleCompile = async () => {
   }
 }
 
-const lastCompiledWasm = ref<Uint8Array | null>(null)
-
 const handleRunWasm = async () => {
   if (!lastCompiledWasm.value) {
-    logPanelRef.value?.addLog('info', '尚未编译 WASM，正在编译...')
+    logPanelRef.value?.addLog('info', '[WASM] 尚未编译，正在编译...')
     await handleCompile()
     if (!lastCompiledWasm.value) {
       logPanelRef.value?.addLog('error', '编译失败，无法运行 WASM')
@@ -262,7 +305,7 @@ const handleRunWasm = async () => {
     }
   }
   
-  logPanelRef.value?.addLog('info', '开始运行编译后的 WASM...')
+  logPanelRef.value?.addLog('info', '[WASM] 开始运行编译后的 WASM...')
   
   try {
     const result = await runCompiledWasm(lastCompiledWasm.value, 'main', [])

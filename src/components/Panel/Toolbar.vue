@@ -27,13 +27,14 @@
         <span class="icon">▶</span>
         <span class="text">{{ t('toolbar.run') }}</span>
       </button>
+      <select class="executor-select" v-model="selectedExecutor" @change="onExecutorChange" :title="executorTooltip">
+        <option value="interpreter">{{ t('toolbar.interpreter') }}</option>
+        <option value="playground">{{ t('toolbar.playground') }}</option>
+        <option value="wasm">{{ t('toolbar.wasm') }}</option>
+      </select>
       <button class="toolbar-btn compile-btn" @click="$emit('compile')" title="下载 WASM">
         <span class="icon">⬇</span>
         <span class="text">WASM</span>
-      </button>
-      <button class="toolbar-btn run-wasm-btn" @click="$emit('runWasm')" title="运行 WASM">
-        <span class="icon">⚡</span>
-        <span class="text">运行WASM</span>
       </button>
     </div>
     <div class="toolbar-right">
@@ -57,6 +58,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import { ref, computed } from 'vue'
+
 interface Props {
   gpuEnabled?: boolean
   threadCount?: number
@@ -67,7 +70,7 @@ withDefaults(defineProps<Props>(), {
   threadCount: 0
 })
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'run'): void
   (e: 'save'): void
   (e: 'format'): void
@@ -76,10 +79,26 @@ defineEmits<{
   (e: 'parallelCheck'): void
   (e: 'download'): void
   (e: 'compile'): void
-  (e: 'runWasm'): void
+  (e: 'executorChange', executor: string): void
 }>()
 
 const { t, locale } = useI18n()
+
+const selectedExecutor = ref<string>(localStorage.getItem('rust_ide_executor') || 'interpreter')
+
+const executorTooltip = computed(() => {
+  switch (selectedExecutor.value) {
+    case 'interpreter': return '本地解释器 (快速、离线)'
+    case 'playground': return 'Rust Playground API (完整编译器)'
+    case 'wasm': return 'WASM 编译器 (浏览器内编译)'
+    default: return ''
+  }
+})
+
+const onExecutorChange = () => {
+  localStorage.setItem('rust_ide_executor', selectedExecutor.value)
+  emit('executorChange', selectedExecutor.value)
+}
 
 const toggleLanguage = () => {
   locale.value = locale.value === 'zh-CN' ? 'en-US' : 'zh-CN'
@@ -171,16 +190,31 @@ const toggleLanguage = () => {
   background-color: #5a3d8a;
 }
 
-.run-wasm-btn {
-  background-color: #c50;
+.executor-select {
+  padding: 6px 12px;
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 0 4px;
 }
 
-.run-wasm-btn:hover {
-  background-color: #e60;
+.executor-select:hover {
+  background-color: #3d3d3d;
+  border-color: #666;
 }
 
-.run-wasm-btn:active {
-  background-color: #a40;
+.executor-select:focus {
+  outline: none;
+  border-color: #0e639c;
+}
+
+.executor-select option {
+  background-color: #2d2d2d;
+  color: #ccc;
 }
 
 .icon {

@@ -12,7 +12,10 @@ export default {
     typeCheck: 'Type Check',
     export: 'Export Project',
     threads: 'threads',
-    singleThread: 'Single thread'
+    singleThread: 'Single thread',
+    interpreter: 'Interpreter',
+    playground: 'Playground',
+    wasm: 'WASM'
   },
   editor: {
     placeholder: 'Enter Rust code here...',

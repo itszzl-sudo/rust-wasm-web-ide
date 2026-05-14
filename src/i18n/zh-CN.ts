@@ -12,7 +12,10 @@ export default {
     typeCheck: '类型检查',
     export: '导出项目',
     threads: '线程',
-    singleThread: '单线程'
+    singleThread: '单线程',
+    interpreter: '解释器',
+    playground: 'Playground',
+    wasm: 'WASM'
   },
   editor: {
     placeholder: '在此输入 Rust 代码...',
