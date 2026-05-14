@@ -7,5 +7,4 @@ target/
 .idea/
 .env
 .env.local
-public/wasm/
 rust-interpreter/pkg/
