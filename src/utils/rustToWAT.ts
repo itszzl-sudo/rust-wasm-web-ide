@@ -117,6 +117,29 @@ export class RustToWAT {
     wat += ' (result i32)\n'
     
     const bodyLines = body.slice(1, -1)
+    
+    // First pass: collect all local variables
+    const locals: string[] = []
+    for (const line of bodyLines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('let ')) {
+        const letMatch = trimmed.match(/let\s+(mut\s+)?(\w+)\s*=/)
+        if (letMatch) {
+          const varName = letMatch[2]
+          if (!this.localVars.has(varName)) {
+            this.localVars.set(varName, localIndex++)
+            locals.push(varName)
+          }
+        }
+      }
+    }
+    
+    // Declare all locals at function start
+    for (const varName of locals) {
+      wat += `    (local $${varName} i32)\n`
+    }
+    
+    // Second pass: generate instructions
     const statements = this.convertBody(bodyLines, localIndex)
     wat += statements
     
@@ -136,8 +159,6 @@ export class RustToWAT {
         if (letMatch) {
           const varName = letMatch[2]
           const expr = letMatch[3]
-          this.localVars.set(varName, localIndex++)
-          wat += `    (local $${varName} i32)\n`
           wat += this.convertExpression(expr)
           wat += `    local.set $${varName}\n`
         }
