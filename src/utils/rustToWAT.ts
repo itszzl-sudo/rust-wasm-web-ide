@@ -360,6 +360,10 @@ export class RustToWAT {
         wat += this.convertPrintln(line)
       } else if (line.startsWith('panic!')) {
         wat += this.convertPanic(line)
+      } else if (line.startsWith('vec!')) {
+        wat += this.convertVec(line)
+      } else if (line.startsWith('format!')) {
+        wat += this.convertFormat(line)
       } else if (line.startsWith('match ')) {
         const result = this.convertMatch(lines, i)
         wat += result.wat
@@ -752,6 +756,46 @@ export class RustToWAT {
           wat += `    i32.load\n`
           return wat
         }
+        
+        // String methods: str.len(), str.push()
+        if (field === 'len' && !expr.includes('(')) {
+          let wat = ''
+          wat += `    local.get $${instance}\n`
+          wat += `    i32.load offset=4\n`
+          return wat
+        }
+        
+        if (field === 'as_str' && !expr.includes('(')) {
+          return `    local.get $${instance}\n`
+        }
+      }
+    }
+    
+    // String push: str.push('c')
+    if (expr.includes('.push(')) {
+      const match = expr.match(/(\w+)\.push\(([^)]+)\)/)
+      if (match) {
+        const strName = match[1]
+        const char = match[2]
+        
+        let wat = ''
+        wat += `    local.get $${strName}\n`
+        wat += this.convertExpression(char)
+        wat += `    call $string_push\n`
+        return wat
+      }
+    }
+    
+    // Array/Slice length: arr.len()
+    if (expr.endsWith('.len()')) {
+      const arrName = expr.replace('.len()', '').trim()
+      if (this.localVars.has(arrName)) {
+        let wat = ''
+        wat += `    local.get $${arrName}\n`
+        wat += `    i32.const 4\n`
+        wat += `    i32.add\n`
+        wat += `    i32.load\n`
+        return wat
       }
     }
     
@@ -949,6 +993,56 @@ export class RustToWAT {
       return wat
     }
     return '    unreachable\n'
+  }
+  
+  private convertVec(line: string): string {
+    const match = line.match(/vec!\s*\[\s*([^\]]*)\s*\]/)
+    if (match) {
+      const elements = match[1].split(',').map(e => e.trim()).filter(e => e)
+      
+      const arrayAddr = this.heapPointer
+      this.heapPointer += 8 + elements.length * 4
+      
+      let wat = ''
+      wat += `    i32.const ${arrayAddr}\n`
+      wat += `    i32.const ${elements.length}\n`
+      wat += `    i32.store\n`
+      wat += `    i32.const ${arrayAddr}\n`
+      wat += `    i32.const ${elements.length}\n`
+      wat += `    i32.store offset=4\n`
+      
+      elements.forEach((elem, idx) => {
+        wat += this.convertExpression(elem)
+        wat += `    i32.const ${arrayAddr + 8 + idx * 4}\n`
+        wat += `    i32.store\n`
+      })
+      
+      wat += `    i32.const ${arrayAddr}\n`
+      return wat
+    }
+    return ''
+  }
+  
+  private convertFormat(line: string): string {
+    const match = line.match(/format!\s*\(\s*"([^"]*)"\s*(?:,\s*(.+))?\s*\)/)
+    if (match) {
+      const format = match[1]
+      const args = match[2] ? match[2].split(',').map(a => a.trim()) : []
+      
+      let result = format
+      args.forEach((arg, idx) => {
+        result = result.replace(/{}/g, `{${arg}}`)
+      })
+      
+      const offset = this.module.data.length * 100
+      this.module.data.push(`(data (i32.const ${offset}) "${result}\\00")`)
+      
+      let wat = ''
+      wat += `    i32.const ${offset}\n`
+      wat += `    i32.const ${result.length}\n`
+      return wat
+    }
+    return ''
   }
   
   private convertLoop(lines: string[], startIndex: number): { wat: string, endIndex: number } {
