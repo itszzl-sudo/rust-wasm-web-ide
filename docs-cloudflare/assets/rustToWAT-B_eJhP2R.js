@@ -20,7 +20,8 @@ class m{module;functionIndex=0;localVars=new Map;constructor(){this.module={type
 `}convertPrintln(t){const s=t.match(/println!\s*\(\s*"([^"]*)"\s*(?:,\s*(.+))?\s*\)/);if(s){const n=s[1],o=s[2]?s[2].split(",").map(r=>r.trim()):[],i=this.module.data.length*100;this.module.data.push(`(data (i32.const ${i}) "${n}\\00")`);let e="";return e+=`    i32.const ${i}
 `,e+=`    i32.const ${n.length}
 `,o.forEach(r=>{e+=this.convertExpression(r)}),e+=`    call $log
-`,e}return""}generateWAT(){let t=`(module
+`,o.forEach(()=>{e+=`    drop
+`}),e}return""}generateWAT(){let t=`(module
 `;return this.module.imports.forEach(s=>{t+=`  ${s}
 `}),this.module.types.length>0&&(t+=`
   ;; Types

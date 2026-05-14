@@ -261,6 +261,12 @@ export class RustToWAT {
       })
       
       wat += `    call $log\n`
+      
+      // Drop any remaining values from args
+      args.forEach(() => {
+        wat += `    drop\n`
+      })
+      
       return wat
     }
     return ''
