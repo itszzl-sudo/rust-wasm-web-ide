@@ -182,8 +182,55 @@ export class RustToWAT {
       
       if (line.startsWith('fn ')) {
         this.parseFunction(lines, i)
+      } else if (line.startsWith('impl ')) {
+        this.parseImpl(lines, i)
       }
     }
+  }
+  
+  private parseImpl(lines: string[], startIndex: number): number {
+    const line = lines[startIndex].trim()
+    const match = line.match(/impl\s+(?:(\w+)\s+for\s+)?(\w+)\s*\{?/)
+    
+    if (!match) return startIndex
+    
+    const traitName = match[1]
+    const typeName = match[2]
+    
+    let braceCount = 0
+    let i = startIndex
+    let started = false
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    const implBody = lines.slice(startIndex + 1, i)
+    
+    for (const bodyLine of implBody) {
+      const trimmed = bodyLine.trim()
+      if (trimmed.startsWith('fn ')) {
+        const fnMatch = trimmed.match(/fn\s+(\w+)\s*\(([^)]*)\)/)
+        if (fnMatch) {
+          const methodName = fnMatch[1]
+          const fullName = `${typeName}_${methodName}`
+          const params = fnMatch[2]
+          
+          this.module.functions.push(`  ;; Method ${typeName}.${methodName}\n`)
+        }
+      }
+    }
+    
+    return i
   }
   
   private parseFunction(lines: string[], startIndex: number): number {
@@ -729,6 +776,25 @@ export class RustToWAT {
           wat += this.convertExpression(arg)
         })
         wat += `    call $${fnName}\n`
+        return wat
+      }
+    }
+    
+    // Method call: obj.method() or obj.method(args)
+    if (expr.includes('.') && expr.includes('(') && expr.includes(')') && !expr.includes('..')) {
+      const methodMatch = expr.match(/(\w+)\.(\w+)\s*\(([^)]*)\)/)
+      if (methodMatch) {
+        const objName = methodMatch[1]
+        const methodName = methodMatch[2]
+        const args = methodMatch[3].split(',').map(a => a.trim()).filter(a => a)
+        
+        let wat = ''
+        wat += this.convertExpression(objName)
+        args.forEach(arg => {
+          wat += this.convertExpression(arg)
+        })
+        
+        wat += `    call $${objName}_${methodName}\n`
         return wat
       }
     }
