@@ -18,6 +18,10 @@ ensureDir(join(root, 'docs-cloudflare/wasm'))
 cpSync(join(root, 'public/wasm'), join(root, 'docs-cloudflare/wasm'), { recursive: true })
 console.log('✓ Copied WASM files')
 
+ensureDir(join(root, 'docs-cloudflare/type-checker'))
+cpSync(join(root, 'public/type-checker'), join(root, 'docs-cloudflare/type-checker'), { recursive: true })
+console.log('✓ Copied type-checker files')
+
 copyFileSync(
   join(root, 'node_modules/monaco-editor/min/vs/base/worker/workerMain.js'),
   join(root, 'docs-cloudflare/editor.worker.js')
