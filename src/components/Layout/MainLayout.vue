@@ -47,8 +47,7 @@ import Toolbar from '../Panel/Toolbar.vue'
 import FileExplorer from '../Panel/FileExplorer.vue'
 import MonacoEditor from '../Editor/MonacoEditor.vue'
 import LogPanel from '../Panel/LogPanel.vue'
-import { useProjectManager } from '@/utils/projectManager'
-import { useFileManager } from '@/utils/fileManager'
+import { useProjectManager } from '@/utils/fileManager'
 import { initRustInterpreter, interpretRustCode, formatRustCode } from '@/utils/rustInterpreter'
 import { loadRustAnalyzer, typeCheck, isRustAnalyzerLoaded } from '@/utils/rustAnalyzer'
 import { gpuExecutor } from '@/utils/gpuExecutor'
@@ -60,8 +59,7 @@ import { executeWithPlayground, formatPlaygroundOutput } from '@/utils/rustPlayg
 const editorRef = ref<InstanceType<typeof MonacoEditor>>()
 const logPanelRef = ref<InstanceType<typeof LogPanel>>()
 
-const { projectFiles, activeFile, setActiveFile, loadProject, addFile, removeFile, renameActiveFile } = useProjectManager()
-const { saveFile, loadFile, createFile, downloadFile, downloadWasm } = useFileManager()
+const { projectFiles, activeFile, setActiveFile, loadProject, addFile, removeFile, renameActiveFile, saveFile, loadFile, deleteFile, downloadFile, downloadWasm } = useProjectManager()
 
 const currentCode = ref('')
 const interpreterReady = ref(false)

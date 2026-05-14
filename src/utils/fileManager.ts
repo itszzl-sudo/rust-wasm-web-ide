@@ -238,6 +238,10 @@ fn main() {
     removeFile,
     renameActiveFile,
     exportProject,
-    createFile: addFile
+    saveFile,
+    loadFile,
+    deleteFile,
+    downloadFile,
+    downloadWasm
   }
 }
