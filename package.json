@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:github": "vite build --mode production",
-    "build:cloudflare": "vite build --mode cloudflare",
+    "build:github": "vite build --mode production && node scripts/copy-github-assets.js",
+    "build:cloudflare": "vite build --mode cloudflare && node scripts/copy-cloudflare-assets.js",
     "build:all": "vite build --mode production && vite build --mode cloudflare",
     "deploy:github": "vite build --mode production && git add docs-github && git commit -m 'deploy: github' && git push origin main",
     "deploy:cloudflare": "vite build --mode cloudflare && wrangler pages deploy docs-cloudflare --project-name=rust-wasm-web-ide --commit-dirty=true",
