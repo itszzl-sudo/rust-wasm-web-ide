@@ -23,6 +23,10 @@
         <span class="icon">🔍</span>
         <span class="text">{{ t('toolbar.typeCheck') }}</span>
       </button>
+      <button class="toolbar-btn clippy-btn" @click="$emit('clippy')" :title="'Clippy 规范检查'">
+        <span class="icon">🧹</span>
+        <span class="text">Clippy</span>
+      </button>
       <button class="toolbar-btn run-btn" @click="$emit('run')" :title="t('toolbar.run')">
         <span class="icon">▶</span>
         <span class="text">{{ t('toolbar.run') }}</span>
@@ -83,6 +87,7 @@ const emit = defineEmits<{
   (e: 'format'): void
   (e: 'newFile'): void
   (e: 'typeCheck'): void
+  (e: 'clippy'): void
   (e: 'parallelCheck'): void
   (e: 'download'): void
   (e: 'generateWasm'): void
@@ -211,6 +216,18 @@ const toggleLanguage = () => {
 
 .typecheck-btn:active {
   background-color: #5a3d8a;
+}
+
+.clippy-btn {
+  background-color: #f4a261;
+}
+
+.clippy-btn:hover {
+  background-color: #f6b27e;
+}
+
+.clippy-btn:active {
+  background-color: #d88a4b;
 }
 
 .generate-wasm-btn {

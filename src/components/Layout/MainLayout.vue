@@ -9,6 +9,7 @@
         @format="handleFormat"
         @newFile="handleNewFile"
         @typeCheck="handleTypeCheck"
+        @clippy="handleClippy"
         @parallelCheck="handleParallelCheck"
         @download="handleDownload"
         @generateWasm="handleGenerateWasm"
@@ -50,6 +51,7 @@ import LogPanel from '../Panel/LogPanel.vue'
 import { useProjectManager } from '@/utils/fileManager'
 import { initRustInterpreter, interpretRustCode, formatRustCode } from '@/utils/rustInterpreter'
 import { loadRustAnalyzer, typeCheck, isRustAnalyzerLoaded } from '@/utils/rustAnalyzer'
+import { checkClippy, loadClippy, formatClippyWarnings, isClippyLoaded } from '@/utils/clippyChecker'
 import { gpuExecutor } from '@/utils/gpuExecutor'
 import { threadManager } from '@/utils/threadManager'
 import { parallelSyntaxCheck, parallelAnalyze, interpreterPool } from '@/utils/parallelInterpreter'
@@ -221,6 +223,41 @@ const handleTypeCheck = async () => {
     }
   } catch (e) {
     logPanelRef.value?.addLog('error', `类型检查失败: ${(e as Error).message}`)
+  }
+}
+
+const handleClippy = async () => {
+  if (!isClippyLoaded()) {
+    logPanelRef.value?.addLog('info', '正在加载 Clippy WASM，请稍候...')
+    try {
+      await loadClippy()
+      logPanelRef.value?.addLog('info', 'Clippy WASM 加载完成')
+    } catch (e) {
+      logPanelRef.value?.addLog('error', `Clippy 加载失败: ${(e as Error).message}`)
+      return
+    }
+  }
+  
+  logPanelRef.value?.addLog('info', '开始 Clippy 规范检查...')
+  try {
+    const warnings = await checkClippy(currentCode.value)
+    const output = formatClippyWarnings(warnings)
+    
+    output.split('\n').forEach(line => {
+      if (line.trim()) {
+        if (line.includes('❌')) {
+          logPanelRef.value?.addLog('error', line)
+        } else if (line.includes('⚠️')) {
+          logPanelRef.value?.addLog('warn', line)
+        } else if (line.includes('✅')) {
+          logPanelRef.value?.addLog('success', line)
+        } else {
+          logPanelRef.value?.addLog('info', line)
+        }
+      }
+    })
+  } catch (e) {
+    logPanelRef.value?.addLog('error', `Clippy 检查失败: ${(e as Error).message}`)
   }
 }
 
