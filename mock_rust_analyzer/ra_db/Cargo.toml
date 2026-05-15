@@ -1,0 +1,8 @@
+[package]
+name = "ra_db"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+ra_syntax = { path = "../ra_syntax" }
+salsa = "0.16"

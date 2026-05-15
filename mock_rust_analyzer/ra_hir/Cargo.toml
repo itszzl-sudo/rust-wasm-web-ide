@@ -1,0 +1,8 @@
+[package]
+name = "ra_hir"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+ra_syntax = { path = "../ra_syntax" }
+ra_db = { path = "../ra_db" }
