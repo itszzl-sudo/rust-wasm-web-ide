@@ -201,6 +201,8 @@ export class RustToWAT {
       
       if (line.startsWith('struct ') || line.startsWith('pub struct ')) {
         this.parseStruct(lines, i)
+      } else if (line.startsWith('#[derive(')) {
+        this.parseDeriveAttribute(lines, i)
       } else if (line.startsWith('enum ') || line.startsWith('pub enum ')) {
         this.parseEnum(lines, i)
       } else if (line.startsWith('mod ')) {
@@ -3230,6 +3232,126 @@ export class RustToWAT {
     }
     
     return 'i32'
+  }
+  
+  private parseDeriveAttribute(lines: string[], startIndex: number): number {
+    const line = lines[startIndex].trim()
+    // #[derive(Trait1, Trait2, ...)]
+    const match = line.match(/#\[derive\(([^)]+)\)\]/)
+    
+    if (!match) return startIndex
+    
+    const traits = match[1].split(',').map(t => t.trim())
+    
+    // Look ahead to find the struct/enum being derived
+    let i = startIndex + 1
+    while (i < lines.length) {
+      const nextLine = lines[i].trim()
+      
+      if (nextLine.startsWith('struct ') || nextLine.startsWith('pub struct ')) {
+        const structMatch = nextLine.match(/struct\s+(\w+)/)
+        if (structMatch) {
+          const structName = structMatch[1]
+          this.generateDerivedImpls(structName, 'struct', traits)
+        }
+        break
+      }
+      
+      if (nextLine.startsWith('enum ') || nextLine.startsWith('pub enum ')) {
+        const enumMatch = nextLine.match(/enum\s+(\w+)/)
+        if (enumMatch) {
+          const enumName = enumMatch[1]
+          this.generateDerivedImpls(enumName, 'enum', traits)
+        }
+        break
+      }
+      
+      if (nextLine && !nextLine.startsWith('//') && !nextLine.startsWith('#[')) {
+        break
+      }
+      
+      i++
+    }
+    
+    return startIndex
+  }
+  
+  private generateDerivedImpls(typeName: string, typeKind: 'struct' | 'enum', traits: string[]) {
+    traits.forEach(trait => {
+      switch (trait) {
+        case 'Debug':
+          this.generateDebugImpl(typeName, typeKind)
+          break
+        case 'Clone':
+          this.generateCloneImpl(typeName, typeKind)
+          break
+        case 'Copy':
+          // Copy is just a marker trait, no methods needed
+          break
+        case 'PartialEq':
+          this.generatePartialEqImpl(typeName, typeKind)
+          break
+        case 'Eq':
+          // Eq is just a marker trait
+          break
+        case 'Default':
+          this.generateDefaultImpl(typeName, typeKind)
+          break
+      }
+    })
+  }
+  
+  private generateDebugImpl(typeName: string, typeKind: 'struct' | 'enum') {
+    // Generate fmt::Debug implementation
+    // fn fmt(&self, f: &mut Formatter) -> Result
+    const methodName = `${typeName}_fmt`
+    
+    // Just register that this impl exists
+    const implKey = `Debug_for_${typeName}`
+    const methods = new Map<string, string>()
+    methods.set('fmt', methodName)
+    this.traitImpls.set(implKey, { traitName: 'Debug', typeName, methods })
+  }
+  
+  private generateCloneImpl(typeName: string, typeKind: 'struct' | 'enum') {
+    // Generate clone implementation
+    const methodName = `${typeName}_clone`
+    
+    const implKey = `Clone_for_${typeName}`
+    const methods = new Map<string, string>()
+    methods.set('clone', methodName)
+    this.traitImpls.set(implKey, { traitName: 'Clone', typeName, methods })
+    
+    // Register operator overload for .clone()
+  }
+  
+  private generatePartialEqImpl(typeName: string, typeKind: 'struct' | 'enum') {
+    // Generate eq implementation
+    const methodName = `${typeName}_eq`
+    
+    const implKey = `PartialEq_for_${typeName}`
+    const methods = new Map<string, string>()
+    methods.set('eq', methodName)
+    this.traitImpls.set(implKey, { traitName: 'PartialEq', typeName, methods })
+    
+    // Register operator overload for ==
+    this.operatorOverloads.set(`${typeName}_==`, {
+      operator: '==',
+      traitName: 'PartialEq',
+      leftType: typeName,
+      rightType: typeName,
+      methodName
+    })
+  }
+  
+  private generateDefaultImpl(typeName: string, typeKind: 'struct' | 'enum') {
+    // Generate default implementation
+    const methodName = `${typeName}_default`
+    
+    const implKey = `Default_for_${typeName}`
+    const methods = new Map<string, string>()
+    methods.set('default', methodName)
+    this.traitImpls.set(implKey, { traitName: 'Default', typeName, methods })
   }
   
   private generateWAT(): string {
