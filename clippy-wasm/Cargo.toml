@@ -1,0 +1,24 @@
+[package]
+name = "clippy-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+
+[patch.crates-io]
+rustc_span = { path = "./mock_rustc/rustc_span" }
+rustc_errors = { path = "./mock_rustc/rustc_errors" }
+rustc_session = { path = "./mock_rustc/rustc_session" }
+rustc_hir = { path = "./mock_rustc/rustc_hir" }
+rustc_middle = { path = "./mock_rustc/rustc_middle" }
+rustc_mir = { path = "./mock_rustc/rustc_mir" }
+rustc_ty = { path = "./mock_rustc/rustc_ty" }
+rustc_lint = { path = "./mock_rustc/rustc_lint" }
+rustc_infer = { path = "./mock_rustc/rustc_infer" }
+rustc_trait_selection = { path = "./mock_rustc/rustc_trait_selection" }
