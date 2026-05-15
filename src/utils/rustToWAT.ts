@@ -78,6 +78,29 @@ interface SmartPointerDef {
   refCount?: number
 }
 
+interface TraitMethod {
+  name: string
+  params: string[]
+  returnType: string
+}
+
+interface TraitDef {
+  name: string
+  methods: TraitMethod[]
+}
+
+interface TraitImpl {
+  traitName: string
+  typeName: string
+  methods: Map<string, string>
+}
+
+interface VTable {
+  traitName: string
+  typeName: string
+  methodPointers: Map<string, number>
+}
+
 export class RustToWAT {
   private module: WATModule
   private functionIndex: number = 0
@@ -97,6 +120,10 @@ export class RustToWAT {
   private typeAliases: Map<string, TypeAlias> = new Map()
   private associatedTypes: Map<string, AssociatedType> = new Map()
   private smartPointers: Map<string, SmartPointerDef> = new Map()
+  private traitDefs: Map<string, TraitDef> = new Map()
+  private traitImpls: Map<string, TraitImpl> = new Map()
+  private vtables: Map<string, VTable> = new Map()
+  private dynTraitVars: Map<string, string> = new Map()
   
   constructor() {
     this.module = {
@@ -175,6 +202,8 @@ export class RustToWAT {
         this.parseTypeAlias(line)
       } else if (line.startsWith('trait ')) {
         this.parseTrait(lines, i)
+      } else if (line.startsWith('impl ') && line.includes(' for ')) {
+        this.parseTraitImpl(lines, i)
       }
     }
   }
@@ -208,6 +237,7 @@ export class RustToWAT {
     
     const traitName = match[1]
     const typeParams = match[2] ? match[2].split(',').map(t => t.trim()) : []
+    const methods: TraitMethod[] = []
     
     let braceCount = 0
     let started = false
@@ -235,13 +265,90 @@ export class RustToWAT {
             concreteType: ''
           })
         }
+        
+        // Parse trait methods: fn method_name(&self, params) -> ReturnType;
+        const methodMatch = trimmed.match(/fn\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*(\w+))?;?/)
+        if (methodMatch) {
+          const methodName = methodMatch[1]
+          const paramsStr = methodMatch[2]
+          const returnType = methodMatch[3] || 'void'
+          const params = paramsStr.split(',').map(p => p.trim()).filter(p => p && p !== '&self' && p !== '&mut self')
+          methods.push({ name: methodName, params, returnType })
+        }
       }
       
       if (started && braceCount === 0) break
       i++
     }
     
+    this.traitDefs.set(traitName, { name: traitName, methods })
+    
     return i
+  }
+  
+  private parseTraitImpl(lines: string[], startIndex: number): number {
+    const line = lines[startIndex].trim()
+    // impl TraitName for TypeName { ... }
+    const match = line.match(/impl\s+(\w+)\s+for\s+(\w+)\s*\{?/)
+    
+    if (!match) return startIndex
+    
+    const traitName = match[1]
+    const typeName = match[2]
+    const methods = new Map<string, string>()
+    
+    let braceCount = 0
+    let started = false
+    let i = startIndex
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      
+      if (started && braceCount > 0) {
+        const trimmed = l.trim()
+        // Parse impl methods: fn method_name(&self, params) { ... }
+        const methodMatch = trimmed.match(/fn\s+(\w+)\s*\(/)
+        if (methodMatch) {
+          const methodName = methodMatch[1]
+          methods.set(methodName, `${typeName}_${methodName}`)
+        }
+      }
+      
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    const implKey = `${traitName}_for_${typeName}`
+    this.traitImpls.set(implKey, { traitName, typeName, methods })
+    
+    // Generate vtable for this impl
+    this.generateVTable(traitName, typeName, methods)
+    
+    return i
+  }
+  
+  private generateVTable(traitName: string, typeName: string, methods: Map<string, string>) {
+    const traitDef = this.traitDefs.get(traitName)
+    if (!traitDef) return
+    
+    const methodPointers = new Map<string, number>()
+    traitDef.methods.forEach(method => {
+      const implMethodName = methods.get(method.name)
+      if (implMethodName) {
+        methodPointers.set(method.name, this.functionIndex)
+        this.functionIndex++
+      }
+    })
+    
+    const vtableKey = `${traitName}_${typeName}`
+    this.vtables.set(vtableKey, { traitName, typeName, methodPointers })
   }
   
   private parseStruct(lines: string[], startIndex: number): number {
@@ -1388,6 +1495,29 @@ export class RustToWAT {
     // Smart pointers: Box::new(), Rc::new(), RefCell::new()
     if (expr.startsWith('Box::new(') || expr.startsWith('Rc::new(') || expr.startsWith('RefCell::new(')) {
       return this.convertSmartPointerConstruction(expr)
+    }
+    
+    // Box<dyn Trait> creation
+    if (expr.startsWith('Box::new(') && expr.includes(' as ')) {
+      const match = expr.match(/Box::new\((\w+)\s+as\s+dyn\s+(\w+)\)/)
+      if (match) {
+        const varName = match[1]
+        const traitName = match[2]
+        return this.convertDynTraitBox(varName, traitName)
+      }
+    }
+    
+    // dyn Trait method call: dyn_var.method()
+    if (this.dynTraitVars.has(expr.split('.')[0])) {
+      const varName = expr.split('.')[0]
+      const traitName = this.dynTraitVars.get(varName)!
+      if (expr.includes('.')) {
+        const parts = expr.split('.')
+        if (parts.length === 2) {
+          const method = parts[1].replace('()', '').trim()
+          return this.convertDynTraitMethodCall(varName, traitName, method)
+        }
+      }
     }
     
     if (expr.startsWith('"') && expr.endsWith('"')) {
@@ -2933,6 +3063,65 @@ export class RustToWAT {
       wat += `    i32.add\n`
       wat += `    i32.load\n`
       return wat
+    }
+    
+    return wat
+  }
+  
+  private convertDynTraitBox(varName: string, traitName: string): string {
+    let wat = ''
+    const address = this.heapPointer
+    this.heapPointer += 8
+    
+    wat += `    local.get $${varName}\n`
+    wat += `    i32.const ${address}\n`
+    wat += `    i32.store\n`
+    
+    // Store vtable pointer (offset +4)
+    const vtableKey = `${traitName}_${this.localVars.get(varName)}`
+    const vtable = this.vtables.get(vtableKey)
+    if (vtable) {
+      wat += `    i32.const ${address + 4}\n`
+      wat += `    i32.const ${Array.from(vtable.methodPointers.values())[0] || 0}\n`
+      wat += `    i32.store\n`
+    }
+    
+    wat += `    i32.const ${address}\n`
+    
+    this.dynTraitVars.set(varName, traitName)
+    
+    return wat
+  }
+  
+  private convertDynTraitMethodCall(varName: string, traitName: string, methodName: string): string {
+    let wat = ''
+    
+    // Get vtable pointer
+    wat += `    local.get $${varName}\n`
+    wat += `    i32.const 4\n`
+    wat += `    i32.add\n`
+    wat += `    i32.load\n`
+    
+    // Get data pointer
+    wat += `    local.get $${varName}\n`
+    wat += `    i32.load\n`
+    
+    // For now, use indirect call through vtable
+    // This is simplified - real implementation would need call_indirect
+    wat += `    ;; dyn call: ${traitName}::${methodName}\n`
+    
+    // Try to find the impl and call directly
+    for (const [implKey, impl] of this.traitImpls.entries()) {
+      if (impl.traitName === traitName) {
+        const implMethod = impl.methods.get(methodName)
+        if (implMethod) {
+          wat = ''
+          wat += `    local.get $${varName}\n`
+          wat += `    i32.load\n`
+          wat += `    call $${implMethod}\n`
+          return wat
+        }
+      }
     }
     
     return wat
