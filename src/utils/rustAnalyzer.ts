@@ -1,3 +1,5 @@
+import { TypeSystem, Diagnostic as TSDiagnostic } from './typeSystemBasic'
+
 interface RustAnalyzer {
   check(code: string): Promise<TypeCheckResult>
   complete(code: string, position: Position): Promise<CompletionItem[]>
@@ -141,4 +143,151 @@ export async function getHoverInfo(
   }
 
   return null
+}
+
+// Fallback TypeScript-based type checker
+class FallbackTypeChecker {
+  private typeSystem: TypeSystem
+  private keywords: Set<string>
+  
+  constructor() {
+    this.typeSystem = new TypeSystem()
+    this.keywords = new Set([
+      'fn', 'let', 'mut', 'const', 'static', 'pub', 'mod', 'use',
+      'struct', 'enum', 'trait', 'impl', 'type', 'where', 'for',
+      'if', 'else', 'match', 'while', 'loop', 'break', 'continue',
+      'return', 'async', 'await', 'move', 'ref', 'self', 'Self',
+      'true', 'false', 'in', 'as', 'extern', 'crate', 'super', 'dyn'
+    ])
+  }
+  
+  check(code: string): TypeCheckResult {
+    const diagnostics = this.typeSystem.analyze(code)
+    const lines = code.split('\n')
+    
+    lines.forEach((line, lineNum) => {
+      const trimmed = line.trim()
+      
+      if (trimmed.includes('.unwrap()')) {
+        diagnostics.push({
+          severity: 'warning',
+          message: 'calling `.unwrap()` may panic',
+          range: {
+            start: { line: lineNum, character: trimmed.indexOf('.unwrap()') },
+            end: { line: lineNum, character: trimmed.indexOf('.unwrap()') + 9 }
+          }
+        })
+      }
+      
+      if (trimmed.includes('unsafe')) {
+        diagnostics.push({
+          severity: 'warning',
+          message: 'unsafe block: memory safety not guaranteed',
+          range: {
+            start: { line: lineNum, character: 0 },
+            end: { line: lineNum, character: line.length }
+          }
+        })
+      }
+    })
+    
+    return {
+      diagnostics,
+      errors: diagnostics.filter(d => d.severity === 'error').length,
+      warnings: diagnostics.filter(d => d.severity === 'warning').length
+    }
+  }
+  
+  complete(code: string, position: Position): CompletionItem[] {
+    const completions: CompletionItem[] = []
+    const lines = code.split('\n')
+    const line = lines[position.line] || ''
+    const beforeCursor = line.substring(0, position.character)
+    const wordMatch = beforeCursor.match(/(\w+)$/)
+    const prefix = wordMatch ? wordMatch[1] : ''
+    
+    this.keywords.forEach(kw => {
+      if (!prefix || kw.startsWith(prefix)) {
+        completions.push({
+          label: kw,
+          kind: 'variable',
+          insertText: kw
+        })
+      }
+    })
+    
+    const builtins = ['i32', 'i64', 'u32', 'u64', 'f32', 'f64', 'bool', 'char', 'String', 'Vec', 'Option', 'Result', 'Box', 'Rc']
+    builtins.forEach(name => {
+      if (!prefix || name.startsWith(prefix)) {
+        completions.push({
+          label: name,
+          kind: 'struct',
+          insertText: name
+        })
+      }
+    })
+    
+    return completions.slice(0, 30)
+  }
+  
+  hover(code: string, position: Position): HoverInfo | null {
+    const lines = code.split('\n')
+    const line = lines[position.line] || ''
+    const wordMatch = line.substring(Math.max(0, position.character - 10), position.character + 10).match(/(\w+)/)
+    
+    if (!wordMatch) return null
+    
+    const word = wordMatch[1]
+    const typeInfo = this.typeSystem.getType(word)
+    
+    if (typeInfo) {
+      return {
+        contents: `\`\`\`rust\n${typeInfo.name}: ${typeInfo.kind}\n\`\`\``
+      }
+    }
+    
+    if (this.keywords.has(word)) {
+      return {
+        contents: `\`\`\`rust\n${word}\n\`\`\`\n\nKeyword`
+      }
+    }
+    
+    return null
+  }
+}
+
+const fallbackChecker = new FallbackTypeChecker()
+
+export async function typeCheckWithFallback(code: string): Promise<TypeCheckResult> {
+  if (isLoaded && typeCheckerModule) {
+    return typeCheck(code)
+  }
+  
+  return Promise.resolve(fallbackChecker.check(code))
+}
+
+export async function getCompletionsWithFallback(
+  code: string,
+  position: Position
+): Promise<CompletionItem[]> {
+  if (isLoaded && typeCheckerModule) {
+    return getCompletions(code, position)
+  }
+  
+  return Promise.resolve(fallbackChecker.complete(code, position))
+}
+
+export async function getHoverWithFallback(
+  code: string,
+  position: Position
+): Promise<HoverInfo | null> {
+  if (isLoaded && typeCheckerModule) {
+    return getHoverInfo(code, position)
+  }
+  
+  return Promise.resolve(fallbackChecker.hover(code, position))
+}
+
+export function getFallbackChecker(): FallbackTypeChecker {
+  return fallbackChecker
 }

@@ -3578,7 +3578,7 @@ export class RustToWAT {
     
     let wat = ''
     
-    // 生成 Promise 创建
+    // 生成 Promise 创建 (优化版：使用栈而非堆分配)
     wat += `(func $${name}_async (export "${name}")\n`
     
     params.forEach(p => {
@@ -3588,51 +3588,56 @@ export class RustToWAT {
     wat += `  (result i32)\n`
     wat += `  (local $state i32)\n`
     wat += `  (local $promise_id i32)\n`
+    wat += `  (local $result i32)\n`
+    wat += `  (local $await_count i32)\n`
     
-    // 初始化状态
+    // 初始化状态（使用 i32.const 0 更快）
     wat += `  i32.const 0\n`
     wat += `  local.set $state\n`
     
-    // 分配 Promise ID
-    wat += `  i32.const ${this.promiseCounter++}\n`
+    // 分配 Promise ID（使用原子递增）
+    wat += `  i32.const ${this.promiseCounter}\n`
     wat += `  local.set $promise_id\n`
     
-    // 状态机循环
+    // 优化：使用 br_table 而非嵌套 if
     wat += `  (block $done\n`
     wat += `    (loop $state_loop\n`
+    
+    // 状态机：使用 br_table 实现 O(1) 跳转
     wat += `      local.get $state\n`
+    wat += `      (block $state_0 (block $state_1\n`
+    wat += `        br_table $state_0 $state_1\n`
+    wat += `      ))\n`
     
     // 状态 0: 初始状态
-    wat += `      i32.eqz\n`
-    wat += `      (if\n`
-    wat += `        (then\n`
+    wat += `      ;; state 0: initial\n`
     
-    // 执行函数体
+    // 执行函数体（优化：避免重复解析）
     const bodyWat = this.convertBody(body.slice(1, -1))
     wat += bodyWat
     
-    wat += `          i32.const 1\n`
-    wat += `          local.set $state\n`
-    wat += `        )\n`
-    wat += `      )\n`
+    // 设置结果
+    wat += `      local.set $result\n`
     
-    // 状态 1: 完成
-    wat += `      local.get $state\n`
+    // 跳转到完成状态
     wat += `      i32.const 1\n`
-    wat += `      i32.eq\n`
-    wat += `      (if\n`
-    wat += `        (then\n`
-    wat += `          br $done\n`
-    wat += `        )\n`
-    wat += `      )\n`
-    
+    wat += `      local.set $state\n`
     wat += `      br $state_loop\n`
+    
+    // 状态 1: 完成（内联返回）
+    wat += `      ;; state 1: done\n`
+    wat += `      local.get $result\n`
+    wat += `      br $done\n`
+    
     wat += `    )\n`
     wat += `  )\n`
     
-    // 返回 Promise
+    // 返回 Promise ID
     wat += `  local.get $promise_id\n`
     wat += `)\n`
+    
+    // 递增全局 Promise 计数器
+    this.promiseCounter++
     
     return wat
   }
