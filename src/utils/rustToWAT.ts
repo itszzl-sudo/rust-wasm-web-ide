@@ -1,3 +1,5 @@
+import { TypeSystem } from './typeSystemBasic'
+
 interface WATModule {
   types: string[]
   imports: string[]
@@ -119,6 +121,18 @@ interface MacroDef {
   rules: MacroRule[]
 }
 
+interface AsyncFunction {
+  name: string
+  params: string[]
+  body: string[]
+  returnType: string
+}
+
+interface AwaitExpr {
+  expr: string
+  resultVar?: string
+}
+
 export class RustToWAT {
   private module: WATModule
   private functionIndex: number = 0
@@ -144,6 +158,10 @@ export class RustToWAT {
   private dynTraitVars: Map<string, string> = new Map()
   private operatorOverloads: Map<string, OperatorOverload> = new Map()
   private macroDefs: Map<string, MacroDef> = new Map()
+  private typeSystem: TypeSystem = new TypeSystem()
+  private asyncFunctions: Map<string, AsyncFunction> = new Map()
+  private promiseCounter: number = 0
+  private asyncStateMachines: Map<string, number> = new Map()
   
   constructor() {
     this.module = {
@@ -181,6 +199,13 @@ export class RustToWAT {
     
     this.addDefaultImports()
     this.parseDefinitions(rustCode)
+    
+    // 运行类型检查
+    const diagnostics = this.typeSystem.analyze(rustCode)
+    if (diagnostics.length > 0) {
+      console.warn('Type check warnings:', diagnostics)
+    }
+    
     this.parseRustCode(rustCode)
     
     return this.generateWAT()
@@ -650,7 +675,14 @@ export class RustToWAT {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
       
-      if (line.startsWith('fn ') || line.startsWith('pub fn ')) {
+      if (line.startsWith('async fn ') || line.startsWith('pub async fn ')) {
+        const { name, params, body, endIndex } = this.parseAsyncFunction(lines, i)
+        if (name) {
+          const watFn = this.convertAsyncFunction(name, params, body)
+          this.module.functions.push(watFn)
+          i = endIndex
+        }
+      } else if (line.startsWith('fn ') || line.startsWith('pub fn ')) {
         this.parseFunction(lines, i)
       } else if (line.startsWith('impl ')) {
         this.parseImpl(lines, i)
@@ -940,6 +972,9 @@ export class RustToWAT {
         const result = this.convertMatch(lines, i)
         wat += result.wat
         i = result.endIndex
+      } else if (line.includes('.await')) {
+        // async/await: expr.await
+        wat += this.convertAwait(line)
       } else if (line.startsWith('for ')) {
         const result = this.convertForLoop(lines, i)
         wat += result.wat
@@ -3501,6 +3536,138 @@ export class RustToWAT {
     })
     
     return replacement
+  }
+  
+  private convertAwait(line: string): string {
+    const match = line.match(/(\w+\.await|.+\.await)/)
+    if (!match) return ''
+    
+    let expr = match[1].replace('.await', '').trim()
+    let wat = ''
+    
+    // 生成 Promise 等待代码
+    // 在 WASM 中，我们使用简化的 Promise 处理
+    const promiseId = this.promiseCounter++
+    
+    // 存储 Promise 状态
+    wat += `    ;; await ${expr}\n`
+    wat += `    (local $promise_state_${promiseId} i32)\n`
+    wat += `    (local $promise_result_${promiseId} i32)\n`
+    
+    // 调用 async 函数
+    if (expr.includes('(')) {
+      wat += this.convertExpression(expr)
+    } else {
+      wat += `    local.get $${expr}\n`
+    }
+    
+    // 检查 Promise 状态
+    wat += `    ;; poll promise\n`
+    wat += `    local.set $promise_result_${promiseId}\n`
+    
+    // 返回结果
+    wat += `    local.get $promise_result_${promiseId}\n`
+    
+    return wat
+  }
+  
+  private convertAsyncFunction(name: string, params: string[], body: string[]): string {
+    // 为 async 函数生成状态机
+    const stateMachineId = this.asyncStateMachines.size
+    this.asyncStateMachines.set(name, stateMachineId)
+    
+    let wat = ''
+    
+    // 生成 Promise 创建
+    wat += `(func $${name}_async (export "${name}")\n`
+    
+    params.forEach(p => {
+      wat += `  (param $${p} i32)\n`
+    })
+    
+    wat += `  (result i32)\n`
+    wat += `  (local $state i32)\n`
+    wat += `  (local $promise_id i32)\n`
+    
+    // 初始化状态
+    wat += `  i32.const 0\n`
+    wat += `  local.set $state\n`
+    
+    // 分配 Promise ID
+    wat += `  i32.const ${this.promiseCounter++}\n`
+    wat += `  local.set $promise_id\n`
+    
+    // 状态机循环
+    wat += `  (block $done\n`
+    wat += `    (loop $state_loop\n`
+    wat += `      local.get $state\n`
+    
+    // 状态 0: 初始状态
+    wat += `      i32.eqz\n`
+    wat += `      (if\n`
+    wat += `        (then\n`
+    
+    // 执行函数体
+    const bodyWat = this.convertBody(body.slice(1, -1))
+    wat += bodyWat
+    
+    wat += `          i32.const 1\n`
+    wat += `          local.set $state\n`
+    wat += `        )\n`
+    wat += `      )\n`
+    
+    // 状态 1: 完成
+    wat += `      local.get $state\n`
+    wat += `      i32.const 1\n`
+    wat += `      i32.eq\n`
+    wat += `      (if\n`
+    wat += `        (then\n`
+    wat += `          br $done\n`
+    wat += `        )\n`
+    wat += `      )\n`
+    
+    wat += `      br $state_loop\n`
+    wat += `    )\n`
+    wat += `  )\n`
+    
+    // 返回 Promise
+    wat += `  local.get $promise_id\n`
+    wat += `)\n`
+    
+    return wat
+  }
+  
+  private parseAsyncFunction(lines: string[], startIndex: number): { name: string, params: string[], body: string[], endIndex: number } {
+    const line = lines[startIndex].trim()
+    const match = line.match(/async\s+fn\s+(\w+)\s*\(([^)]*)\)/)
+    
+    if (!match) return { name: '', params: [], body: [], endIndex: startIndex }
+    
+    const name = match[1]
+    const paramsStr = match[2]
+    const params = paramsStr.split(',').map(p => p.trim().split(':')[0].trim()).filter(p => p)
+    
+    // 找到函数体
+    let braceCount = 0
+    let started = false
+    let i = startIndex
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    const body = lines.slice(startIndex, i + 1)
+    
+    return { name, params, body, endIndex: i }
   }
   
   private generateWAT(): string {
