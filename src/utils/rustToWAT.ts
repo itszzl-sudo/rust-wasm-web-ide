@@ -109,6 +109,16 @@ interface OperatorOverload {
   methodName: string
 }
 
+interface MacroRule {
+  pattern: string
+  replacement: string
+}
+
+interface MacroDef {
+  name: string
+  rules: MacroRule[]
+}
+
 export class RustToWAT {
   private module: WATModule
   private functionIndex: number = 0
@@ -133,6 +143,7 @@ export class RustToWAT {
   private vtables: Map<string, VTable> = new Map()
   private dynTraitVars: Map<string, string> = new Map()
   private operatorOverloads: Map<string, OperatorOverload> = new Map()
+  private macroDefs: Map<string, MacroDef> = new Map()
   
   constructor() {
     this.module = {
@@ -215,6 +226,8 @@ export class RustToWAT {
         this.parseTrait(lines, i)
       } else if (line.startsWith('impl ') && line.includes(' for ')) {
         this.parseTraitImpl(lines, i)
+      } else if (line.startsWith('macro_rules! ')) {
+        this.parseMacroRules(lines, i)
       }
     }
   }
@@ -908,6 +921,21 @@ export class RustToWAT {
         wat += this.convertVec(line)
       } else if (line.startsWith('format!')) {
         wat += this.convertFormat(line)
+      } else if (line.endsWith('!') && line.includes('(')) {
+        // Generic macro invocation: macro_name!(args)
+        const macroMatch = line.match(/(\w+)!\(([^)]*)\)/)
+        if (macroMatch) {
+          const macroName = macroMatch[1]
+          const args = macroMatch[2].split(',').map(a => a.trim()).filter(a => a)
+          
+          // Check if it's a user-defined macro
+          if (this.macroDefs.has(macroName)) {
+            const expanded = this.expandMacro(macroName, args)
+            if (expanded) {
+              wat += this.convertExpression(expanded)
+            }
+          }
+        }
       } else if (line.startsWith('match ')) {
         const result = this.convertMatch(lines, i)
         wat += result.wat
@@ -1731,6 +1759,14 @@ export class RustToWAT {
       if (callMatch) {
         let fnName = callMatch[1]
         const args = callMatch[2].split(',').map(a => a.trim()).filter(a => a)
+        
+        // Check if it's a macro invocation
+        if (this.macroDefs.has(fnName)) {
+          const expanded = this.expandMacro(fnName, args)
+          if (expanded) {
+            return this.convertExpression(expanded)
+          }
+        }
         
         // Resolve function name through use aliases
         fnName = this.resolvePath(fnName)
@@ -3352,6 +3388,119 @@ export class RustToWAT {
     const methods = new Map<string, string>()
     methods.set('default', methodName)
     this.traitImpls.set(implKey, { traitName: 'Default', typeName, methods })
+  }
+  
+  private parseMacroRules(lines: string[], startIndex: number): number {
+    const line = lines[startIndex].trim()
+    // macro_rules! name { ... }
+    const match = line.match(/macro_rules!\s+(\w+)\s*\{?/)
+    
+    if (!match) return startIndex
+    
+    const macroName = match[1]
+    const rules: MacroRule[] = []
+    
+    let braceCount = 0
+    let started = false
+    let i = startIndex
+    let currentPattern = ''
+    let currentReplacement = ''
+    let inPattern = true
+    
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l.includes('{')) {
+        started = true
+        braceCount += (l.match(/{/g) || []).length
+      }
+      if (l.includes('}')) {
+        braceCount -= (l.match(/}/g) || []).length
+      }
+      
+      if (started && braceCount > 0) {
+        const trimmed = l.trim()
+        
+        // Pattern-replacement separator: =>
+        if (trimmed.includes('=>')) {
+          const parts = trimmed.split('=>')
+          currentPattern = parts[0].trim().replace(/^\(/, '').replace(/\)$/, '')
+          currentReplacement = parts[1].trim()
+          inPattern = false
+        }
+        
+        // Rule separator: ;
+        if (trimmed.endsWith(';') && currentPattern && currentReplacement) {
+          currentReplacement = currentReplacement.replace(/;$/, '').replace(/^\{/, '').replace(/\}$/, '')
+          rules.push({
+            pattern: currentPattern,
+            replacement: currentReplacement
+          })
+          currentPattern = ''
+          currentReplacement = ''
+          inPattern = true
+        }
+      }
+      
+      if (started && braceCount === 0) break
+      i++
+    }
+    
+    this.macroDefs.set(macroName, { name: macroName, rules })
+    
+    return i
+  }
+  
+  private expandMacro(macroName: string, args: string[]): string | null {
+    const macroDef = this.macroDefs.get(macroName)
+    if (!macroDef) return null
+    
+    for (const rule of macroDef.rules) {
+      const expanded = this.tryExpandRule(rule, args)
+      if (expanded) return expanded
+    }
+    
+    return null
+  }
+  
+  private tryExpandRule(rule: MacroRule, args: string[]): string | null {
+    // Simple pattern matching: $name:type
+    const patternVars: Map<string, string> = new Map()
+    
+    // Extract pattern variables
+    const patternParts = rule.pattern.split(/[\s,()]+/).filter(p => p)
+    const argParts = args
+    
+    // Match pattern to args
+    let patternIdx = 0
+    let argIdx = 0
+    
+    while (patternIdx < patternParts.length && argIdx < argParts.length) {
+      const patPart = patternParts[patternIdx]
+      const argPart = argParts[argIdx]
+      
+      // Check for metavariable: $name:tt, $name:expr, etc.
+      const metaMatch = patPart.match(/\$(\w+):(\w+)/)
+      if (metaMatch) {
+        const varName = metaMatch[1]
+        patternVars.set(varName, argPart)
+        patternIdx++
+        argIdx++
+      } else if (patPart === argPart) {
+        patternIdx++
+        argIdx++
+      } else {
+        // No match
+        return null
+      }
+    }
+    
+    // Substitute variables in replacement
+    let replacement = rule.replacement
+    patternVars.forEach((value, varName) => {
+      replacement = replacement.replace(new RegExp(`\\$${varName}`, 'g'), value)
+    })
+    
+    return replacement
   }
   
   private generateWAT(): string {
