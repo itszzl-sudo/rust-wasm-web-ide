@@ -101,6 +101,14 @@ interface VTable {
   methodPointers: Map<string, number>
 }
 
+interface OperatorOverload {
+  operator: string
+  traitName: string
+  leftType: string
+  rightType: string
+  methodName: string
+}
+
 export class RustToWAT {
   private module: WATModule
   private functionIndex: number = 0
@@ -124,6 +132,7 @@ export class RustToWAT {
   private traitImpls: Map<string, TraitImpl> = new Map()
   private vtables: Map<string, VTable> = new Map()
   private dynTraitVars: Map<string, string> = new Map()
+  private operatorOverloads: Map<string, OperatorOverload> = new Map()
   
   constructor() {
     this.module = {
@@ -331,7 +340,44 @@ export class RustToWAT {
     // Generate vtable for this impl
     this.generateVTable(traitName, typeName, methods)
     
+    // Register operator overloads
+    this.registerOperatorOverloads(traitName, typeName, methods)
+    
     return i
+  }
+  
+  private registerOperatorOverloads(traitName: string, typeName: string, methods: Map<string, string>) {
+    const operatorTraits: Record<string, { operator: string, method: string }> = {
+      'Add': { operator: '+', method: 'add' },
+      'Sub': { operator: '-', method: 'sub' },
+      'Mul': { operator: '*', method: 'mul' },
+      'Div': { operator: '/', method: 'div' },
+      'Rem': { operator: '%', method: 'rem' },
+      'BitAnd': { operator: '&', method: 'bitand' },
+      'BitOr': { operator: '|', method: 'bitor' },
+      'BitXor': { operator: '^', method: 'bitxor' },
+      'Shl': { operator: '<<', method: 'shl' },
+      'Shr': { operator: '>>', method: 'shr' },
+      'Neg': { operator: '-', method: 'neg' },
+      'Not': { operator: '!', method: 'not' },
+      'PartialEq': { operator: '==', method: 'eq' },
+      'PartialOrd': { operator: '<', method: 'partial_cmp' }
+    }
+    
+    const opTrait = operatorTraits[traitName]
+    if (opTrait) {
+      const implMethod = methods.get(opTrait.method)
+      if (implMethod) {
+        const key = `${typeName}_${opTrait.operator}`
+        this.operatorOverloads.set(key, {
+          operator: opTrait.operator,
+          traitName,
+          leftType: typeName,
+          rightType: typeName,
+          methodName: implMethod
+        })
+      }
+    }
   }
   
   private generateVTable(traitName: string, typeName: string, methods: Map<string, string>) {
@@ -1809,29 +1855,41 @@ export class RustToWAT {
     // Modulo
     if (expr.includes('%')) {
       const [left, right] = expr.split('%').map(e => e.trim())
+      const overloadWat = this.tryOperatorOverload('%', left, right)
+      if (overloadWat) return overloadWat
       return this.convertExpression(left) + this.convertExpression(right) + '    i32.rem_s\n'
     }
     
     // Unary minus
     if (expr.startsWith('-')) {
       const inner = expr.slice(1).trim()
+      const overloadWat = this.tryUnaryOperatorOverload('-', inner)
+      if (overloadWat) return overloadWat
       return '    i32.const 0\n' + this.convertExpression(inner) + '    i32.sub\n'
     }
     
     if (expr.includes('+')) {
       const [left, right] = expr.split('+').map(e => e.trim())
+      const overloadWat = this.tryOperatorOverload('+', left, right)
+      if (overloadWat) return overloadWat
       return this.convertExpression(left) + this.convertExpression(right) + '    i32.add\n'
     }
     if (expr.includes('-') && !expr.startsWith('-')) {
       const [left, right] = expr.split('-').map(e => e.trim())
+      const overloadWat = this.tryOperatorOverload('-', left, right)
+      if (overloadWat) return overloadWat
       return this.convertExpression(left) + this.convertExpression(right) + '    i32.sub\n'
     }
     if (expr.includes('*')) {
       const [left, right] = expr.split('*').map(e => e.trim())
+      const overloadWat = this.tryOperatorOverload('*', left, right)
+      if (overloadWat) return overloadWat
       return this.convertExpression(left) + this.convertExpression(right) + '    i32.mul\n'
     }
     if (expr.includes('/') && !expr.startsWith('/')) {
       const [left, right] = expr.split('/').map(e => e.trim())
+      const overloadWat = this.tryOperatorOverload('/', left, right)
+      if (overloadWat) return overloadWat
       return this.convertExpression(left) + this.convertExpression(right) + '    i32.div_s\n'
     }
     
@@ -3125,6 +3183,53 @@ export class RustToWAT {
     }
     
     return wat
+  }
+  
+  private tryOperatorOverload(op: string, left: string, right: string): string | null {
+    const leftType = this.inferType(left)
+    const key = `${leftType}_${op}`
+    const overload = this.operatorOverloads.get(key)
+    
+    if (overload) {
+      let wat = ''
+      wat += this.convertExpression(left)
+      wat += this.convertExpression(right)
+      wat += `    call $${overload.methodName}\n`
+      return wat
+    }
+    
+    return null
+  }
+  
+  private tryUnaryOperatorOverload(op: string, inner: string): string | null {
+    const innerType = this.inferType(inner)
+    const key = `${innerType}_${op}`
+    const overload = this.operatorOverloads.get(key)
+    
+    if (overload) {
+      let wat = ''
+      wat += this.convertExpression(inner)
+      wat += `    call $${overload.methodName}\n`
+      return wat
+    }
+    
+    return null
+  }
+  
+  private inferType(expr: string): string {
+    expr = expr.trim()
+    
+    if (/^\d+$/.test(expr)) return 'i32'
+    if (expr === 'true' || expr === 'false') return 'bool'
+    if (expr.startsWith('"') && expr.endsWith('"')) return 'String'
+    
+    if (this.localVars.has(expr)) {
+      for (const [structName, structDef] of this.structDefs.entries()) {
+        return structName
+      }
+    }
+    
+    return 'i32'
   }
   
   private generateWAT(): string {
