@@ -5,6 +5,7 @@
       :class="{ active: node.type === 'file' && path === activeFile }"
       :style="{ paddingLeft: (depth * 16 + 8) + 'px' }"
       @click="handleClick"
+      @dblclick="handleDoubleClick"
       @contextmenu.prevent="showContextMenu"
     >
       <span v-if="node.type === 'directory'" class="expand-icon">
@@ -21,7 +22,13 @@
         @keyup.escape="cancelRename"
         ref="renameInputRef"
       />
-      <div class="node-actions" v-if="node.type === 'file' && path === activeFile && editingPath !== path">
+      
+      <div v-if="node.type === 'directory' && isHovered" class="node-actions">
+        <button class="action-btn" @click.stop="handleUpload" title="上传文件">↑</button>
+        <input ref="uploadInput" type="file" multiple @change="handleUploadFiles" style="display: none" />
+      </div>
+      
+      <div v-if="node.type === 'file' && isHovered && editingPath !== path" class="node-actions">
         <button class="action-btn" @click.stop="startRename" title="重命名">✏️</button>
         <button class="action-btn" @click.stop="$emit('download', path)" title="下载">⬇️</button>
         <button class="action-btn" @click.stop="$emit('delete', path)" title="删除">🗑️</button>
@@ -46,6 +53,7 @@
         @runWasm="$emit('runWasm', $event)"
         @toggle="$emit('toggle', $event)"
         @newFile="(p) => $emit('newFile', p)"
+        @upload="(p) => $emit('upload', p)"
       />
     </div>
   </div>
@@ -81,11 +89,14 @@ const emit = defineEmits<{
   (e: 'runWasm', path: string): void
   (e: 'toggle', path: string): void
   (e: 'newFile', path?: string): void
+  (e: 'upload', path?: string): void
 }>()
 
 const editingPath = ref<string | null>(null)
 const newName = ref('')
 const renameInputRef = ref<HTMLInputElement>()
+const uploadInput = ref<HTMLInputElement>()
+const isHovered = ref(false)
 
 const path = computed(() => {
   return props.parentPath ? `${props.parentPath}/${props.name}` : props.name
@@ -113,9 +124,21 @@ const getIcon = (): string => {
 const handleClick = () => {
   if (props.node.type === 'directory') {
     emit('toggle', path.value)
-  } else {
+  }
+}
+
+const handleDoubleClick = () => {
+  if (props.node.type === 'file') {
     emit('select', path.value)
   }
+}
+
+const handleUpload = () => {
+  uploadInput.value?.click()
+}
+
+const handleUploadFiles = () => {
+  emit('upload', path.value)
 }
 
 const showContextMenu = (event: MouseEvent) => {
@@ -209,7 +232,6 @@ const cancelRename = () => {
 .node-actions {
   display: flex;
   gap: 4px;
-  opacity: 0;
   transition: opacity 0.2s;
 }
 

@@ -2,9 +2,15 @@
   <div class="file-explorer">
     <div class="explorer-header">
       <span class="header-title">项目文件</span>
-      <button class="new-file-btn" @click="$emit('newFile')" title="新建文件">
-        <span class="icon">+</span>
-      </button>
+      <div class="header-actions">
+        <button class="header-btn" @click="$emit('newFile')" title="新建文件">
+          <span class="icon">+</span>
+        </button>
+        <button class="header-btn" @click="triggerUpload" title="上传文件">
+          <span class="icon">↑</span>
+        </button>
+        <input ref="uploadInput" type="file" multiple @change="handleUpload" style="display: none" />
+      </div>
     </div>
     <div class="file-tree">
       <FileTreeNode
@@ -21,6 +27,7 @@
         @runWasm="$emit('runWasm', $event)"
         @toggle="toggleExpand"
         @newFile="(path) => $emit('newFile', path)"
+        @upload="(path) => triggerUpload(path)"
       />
     </div>
     
@@ -57,12 +64,15 @@ const emit = defineEmits<{
   (e: 'download', filename: string): void
   (e: 'runWasm', filename: string): void
   (e: 'newFile', path?: string): void
+  (e: 'upload', files: { path: string; content: string }[]): void
 }>()
 
 const expandedPaths = ref<Set<string>>(new Set(['src']))
 const editingFile = ref<string | null>(null)
 const newFileName = ref('')
 const renameInput = ref<HTMLInputElement>()
+const uploadInput = ref<HTMLInputElement>()
+const uploadPath = ref<string>('')
 
 const contextMenu = ref({
   show: false,
@@ -121,6 +131,47 @@ const startRename = (file: string) => {
   })
 }
 
+const triggerUpload = (path?: string) => {
+  uploadPath.value = path || ''
+  uploadInput.value?.click()
+}
+
+const handleUpload = async (event: Event) => {
+  const files = (event.target as HTMLInputElement).files
+  if (!files || files.length === 0) return
+  
+  const uploadedFiles: { path: string; content: string }[] = []
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    const path = uploadPath.value ? `${uploadPath.value}/${file.name}` : file.name
+    
+    try {
+      const content = await readFileContent(file)
+      uploadedFiles.push({ path, content })
+    } catch (e) {
+      console.error(`Failed to read file ${file.name}:`, e)
+    }
+  }
+  
+  if (uploadedFiles.length > 0) {
+    emit('upload', uploadedFiles)
+  }
+  
+  if (uploadInput.value) {
+    uploadInput.value.value = ''
+  }
+}
+
+const readFileContent = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(file)
+  })
+}
+
 document.addEventListener('click', () => {
   contextMenu.value.show = false
 })
@@ -152,7 +203,12 @@ document.addEventListener('click', () => {
   letter-spacing: 0.5px;
 }
 
-.new-file-btn {
+.header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.header-btn {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -160,7 +216,7 @@ document.addEventListener('click', () => {
   border: none;
   border-radius: 4px;
   color: #fff;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -169,7 +225,7 @@ document.addEventListener('click', () => {
   transition: background-color 0.2s;
 }
 
-.new-file-btn:hover {
+.header-btn:hover {
   background-color: #1177bb;
 }
 

@@ -1,9 +1,16 @@
 <template>
-  <div ref="editorContainer" class="monaco-editor"></div>
+  <div v-if="!isSupported" class="unsupported-file">
+    <div class="unsupported-content">
+      <span class="unsupported-icon">📄</span>
+      <span class="unsupported-text">暂不支持此文件类型</span>
+      <span class="unsupported-filename">{{ filename }}</span>
+    </div>
+  </div>
+  <div v-else ref="editorContainer" class="monaco-editor"></div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as monaco from 'monaco-editor'
 import { rustLanguage } from './rustLanguage'
 
@@ -24,6 +31,14 @@ const emit = defineEmits<{
 const editorContainer = ref<HTMLElement>()
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 let model: monaco.editor.ITextModel | null = null
+
+const supportedExtensions = ['.rs', '.toml', '.md', '.txt', '.json', '.js', '.ts', '.vue', '.html', '.css']
+
+const isSupported = computed(() => {
+  if (!props.filename) return true
+  const ext = '.' + props.filename.split('.').pop()?.toLowerCase()
+  return supportedExtensions.includes(ext)
+})
 
 onMounted(() => {
   if (!editorContainer.value) return
@@ -137,5 +152,37 @@ defineExpose({
 .monaco-editor {
   width: 100%;
   height: 100%;
+}
+
+.unsupported-file {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1e1e1e;
+}
+
+.unsupported-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #888;
+}
+
+.unsupported-icon {
+  font-size: 64px;
+  opacity: 0.5;
+}
+
+.unsupported-text {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.unsupported-filename {
+  font-size: 13px;
+  color: #666;
 }
 </style>

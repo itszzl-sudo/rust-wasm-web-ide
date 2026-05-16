@@ -25,6 +25,7 @@
           @download="handleFileDownload"
           @runWasm="handleRunWasmFile"
           @newFile="handleNewFile"
+          @upload="handleUpload"
         />
       </div>
       <div class="editor-area">
@@ -226,6 +227,13 @@ const handleTabClose = (path: string) => {
   if (activeFile.value) {
     currentCode.value = loadFile(activeFile.value) || ''
   }
+}
+
+const handleUpload = (files: { path: string; content: string }[]) => {
+  files.forEach(({ path, content }) => {
+    addFile(path, content)
+  })
+  logPanelRef.value?.addLog('info', `已上传 ${files.length} 个文件`)
 }
 
 const handleTypeCheck = async () => {
