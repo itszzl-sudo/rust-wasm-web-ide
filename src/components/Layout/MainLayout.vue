@@ -7,7 +7,6 @@
         @run="handleRun"
         @save="handleSave"
         @format="handleFormat"
-        @newFile="handleNewFile"
         @typeCheck="handleTypeCheck"
         @clippy="handleClippy"
         @parallelCheck="handleParallelCheck"
@@ -25,15 +24,24 @@
           @delete="handleFileDelete"
           @download="handleFileDownload"
           @runWasm="handleRunWasmFile"
+          @newFile="handleNewFile"
         />
       </div>
-      <div class="editor-container">
-        <MonacoEditor
-          ref="editorRef"
-          v-model="currentCode"
-          :filename="activeFile"
-          @change="handleCodeChange"
+      <div class="editor-area">
+        <TabBar
+          :tabs="openTabs"
+          :active-tab="activeFile"
+          @select="handleTabSelect"
+          @close="handleTabClose"
         />
+        <div class="editor-container">
+          <MonacoEditor
+            ref="editorRef"
+            v-model="currentCode"
+            :filename="activeFile"
+            @change="handleCodeChange"
+          />
+        </div>
       </div>
       <div class="log-container">
         <LogPanel ref="logPanelRef" />
@@ -48,6 +56,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Toolbar from '../Panel/Toolbar.vue'
+import TabBar from '../Panel/TabBar.vue'
 import FileExplorer from '../Panel/FileExplorer.vue'
 import MonacoEditor from '../Editor/MonacoEditor.vue'
 import LogPanel from '../Panel/LogPanel.vue'
@@ -66,7 +75,7 @@ const editorRef = ref<InstanceType<typeof MonacoEditor>>()
 const logPanelRef = ref<InstanceType<typeof LogPanel>>()
 const terminalRef = ref<InstanceType<typeof Terminal>>()
 
-const { projectFiles, activeFile, setActiveFile, loadProject, addFile, removeFile, renameActiveFile, saveFile, loadFile, deleteFile, downloadFile, downloadWasm } = useProjectManager()
+const { projectFiles, activeFile, openTabs, loadProject, addFile, removeFile, renameFileInTabs, saveFile, loadFile, downloadFile, downloadWasm, openTab, closeTab } = useProjectManager()
 
 const currentCode = ref('')
 const interpreterReady = ref(false)
@@ -147,7 +156,7 @@ const handleSave = () => {
 }
 
 const handleFileRename = (oldPath: string, newPath: string) => {
-  if (renameActiveFile(newPath)) {
+  if (renameFileInTabs(oldPath, newPath)) {
     logPanelRef.value?.addLog('info', `已重命名: ${oldPath} → ${newPath}`)
   } else {
     logPanelRef.value?.addLog('error', `重命名失败: ${newPath} 已存在`)
@@ -195,10 +204,27 @@ const handleFormat = async () => {
 const handleNewFile = () => {
   const filename = `untitled_${Date.now()}.rs`
   if (addFile(filename, '// New Rust file\nfn main() {\n    println!("Hello, Rust!");\n}\n')) {
-    setActiveFile(filename)
     logPanelRef.value?.addLog('info', `已创建: ${filename}`)
   } else {
     logPanelRef.value?.addLog('error', `创建失败: ${filename} 已存在`)
+  }
+}
+
+const handleTabSelect = (path: string) => {
+  if (activeFile.value) {
+    saveFile(activeFile.value, currentCode.value)
+  }
+  openTab(path)
+  currentCode.value = loadFile(path) || ''
+}
+
+const handleTabClose = (path: string) => {
+  if (activeFile.value) {
+    saveFile(activeFile.value, currentCode.value)
+  }
+  closeTab(path)
+  if (activeFile.value) {
+    currentCode.value = loadFile(activeFile.value) || ''
   }
 }
 
@@ -562,8 +588,15 @@ onBeforeUnmount(() => {
   overflow: auto;
 }
 
-.editor-container {
+.editor-area {
   grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-container {
+  flex: 1;
   overflow: hidden;
 }
 

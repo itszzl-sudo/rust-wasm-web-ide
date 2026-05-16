@@ -125,11 +125,12 @@ export function useProjectManager() {
 
   const projectFiles = ref<string[]>([])
   const activeFile = ref<string>()
+  const openTabs = ref<{ path: string; modified?: boolean }[]>([])
   const autoSaveEnabled = ref(true)
 
   const createDefaultProject = (): void => {
     const defaultFiles = {
-      'untitled.rs': `// Rust WASM Web IDE
+      'src/main.rs': `// Rust WASM Web IDE
 // 
 // 执行器说明：
 // • Iris Interpreter: 本地 WASM 解释器，快速离线执行
@@ -151,6 +152,13 @@ fn main() {
         println!("i = {}", i);
     }
 }
+`,
+      'Cargo.toml': `[package]
+name = "my-project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
 `
     }
 
@@ -177,9 +185,14 @@ fn main() {
 
     projectFiles.value = listFiles()
     if (projectFiles.value.length > 0 && !activeFile.value) {
-      const untitledRs = projectFiles.value.find(f => f === 'untitled.rs')
       const mainRs = projectFiles.value.find(f => f === 'src/main.rs')
-      activeFile.value = untitledRs || mainRs || projectFiles.value[0]
+      const untitledRs = projectFiles.value.find(f => f === 'untitled.rs')
+      const firstRs = projectFiles.value.find(f => f.endsWith('.rs'))
+      activeFile.value = mainRs || untitledRs || firstRs || projectFiles.value[0]
+      
+      if (activeFile.value) {
+        openTab(activeFile.value)
+      }
     }
   }
 
@@ -187,18 +200,40 @@ fn main() {
     activeFile.value = filename
   }
 
+  const openTab = (path: string): void => {
+    if (!openTabs.value.find(t => t.path === path)) {
+      openTabs.value.push({ path })
+    }
+    activeFile.value = path
+  }
+
+  const closeTab = (path: string): void => {
+    const index = openTabs.value.findIndex(t => t.path === path)
+    if (index === -1) return
+    
+    openTabs.value.splice(index, 1)
+    
+    if (activeFile.value === path) {
+      if (openTabs.value.length > 0) {
+        const newIndex = Math.min(index, openTabs.value.length - 1)
+        activeFile.value = openTabs.value[newIndex].path
+      } else {
+        activeFile.value = undefined
+      }
+    }
+  }
+
   const addFile = (path: string, content: string): boolean => {
     if (!createFile(path, content)) return false
     projectFiles.value = listFiles()
+    openTab(path)
     return true
   }
 
   const removeFile = (path: string): boolean => {
     if (!deleteFile(path)) return false
     projectFiles.value = listFiles()
-    if (activeFile.value === path) {
-      activeFile.value = projectFiles.value[0]
-    }
+    closeTab(path)
     return true
   }
 
@@ -208,7 +243,26 @@ fn main() {
     
     if (!renameFile(oldPath, newPath)) return false
     projectFiles.value = listFiles()
+    
+    const tab = openTabs.value.find(t => t.path === oldPath)
+    if (tab) {
+      tab.path = newPath
+    }
     activeFile.value = newPath
+    return true
+  }
+
+  const renameFileInTabs = (oldPath: string, newPath: string): boolean => {
+    if (!renameFile(oldPath, newPath)) return false
+    projectFiles.value = listFiles()
+    
+    const tab = openTabs.value.find(t => t.path === oldPath)
+    if (tab) {
+      tab.path = newPath
+    }
+    if (activeFile.value === oldPath) {
+      activeFile.value = newPath
+    }
     return true
   }
 
@@ -231,12 +285,16 @@ fn main() {
   return {
     projectFiles,
     activeFile,
+    openTabs,
     autoSaveEnabled,
     loadProject,
     setActiveFile,
+    openTab,
+    closeTab,
     addFile,
     removeFile,
     renameActiveFile,
+    renameFileInTabs,
     exportProject,
     saveFile,
     loadFile,

@@ -7,10 +7,6 @@
       </div>
     </div>
     <div class="toolbar-center">
-      <button class="toolbar-btn" @click="$emit('newFile')" :title="t('toolbar.newFile')">
-        <span class="icon">📄</span>
-        <span class="text">{{ t('toolbar.newFile') }}</span>
-      </button>
       <button class="toolbar-btn" @click="$emit('save')" :title="t('toolbar.save')">
         <span class="icon">💾</span>
         <span class="text">{{ t('toolbar.save') }}</span>
