@@ -45,10 +45,10 @@ export async function compileRustToWasm(rustCode: string): Promise<CompileResult
   const startTime = performance.now()
   
   try {
-    const { rustToWAT } = await import('./rustToWAT')
+    const { rustToWat } = await import('./rustToWAT')
     
     console.log('[Compiler] Step 1: Converting Rust to WAT...')
-    const wat = rustToWAT.convert(rustCode)
+    const wat = rustToWat(rustCode)
     console.log('[Compiler] WAT generated:', wat.split('\n').length, 'lines')
     
     console.log('[Compiler] Step 2: Compiling WAT to WASM...')
