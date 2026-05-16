@@ -421,12 +421,23 @@ const handleGenerateWasm = async () => {
       
       if (addFile(wasmFileName, wasmContent)) {
         logPanelRef.value?.addLog('info', `✓ 已生成: ${wasmFileName}`)
+        logPanelRef.value?.addLog('info', `  编译方式: ${result.method === 'rustToWAT' ? '本地 WASM' : 'Playground'}`)
         logPanelRef.value?.addLog('info', `  WAT: ${result.stats.watLines} 行`)
         logPanelRef.value?.addLog('info', `  WASM: ${result.stats.wasmBytes} 字节`)
         logPanelRef.value?.addLog('info', `  耗时: ${result.stats.compileTime.toFixed(0)}ms`)
       } else {
         logPanelRef.value?.addLog('error', `文件已存在: ${wasmFileName}`)
       }
+    } else if (result.success && result.stdout) {
+      logPanelRef.value?.addLog('info', `✓ Playground 编译成功`)
+      logPanelRef.value?.addLog('info', `  编译方式: Rust Playground (远程)`)
+      logPanelRef.value?.addLog('info', `  耗时: ${result.stats.compileTime.toFixed(0)}ms`)
+      logPanelRef.value?.addLog('info', `  输出:`)
+      result.stdout.split('\n').forEach(line => {
+        if (line.trim()) {
+          logPanelRef.value?.addLog('info', `    ${line}`)
+        }
+      })
     } else {
       logPanelRef.value?.addLog('error', `编译失败: ${result.error}`)
     }

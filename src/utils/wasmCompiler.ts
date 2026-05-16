@@ -9,6 +9,9 @@ export interface CompileResult {
     wasmBytes: number
     compileTime: number
   }
+  method?: 'rustToWAT' | 'playground'
+  stdout?: string
+  stderr?: string
 }
 
 let wabtModule: any = null
@@ -60,6 +63,7 @@ export async function compileRustToWasm(rustCode: string): Promise<CompileResult
       success: true,
       wasm: wasmBinary,
       wat,
+      method: 'rustToWAT',
       stats: {
         rustLines: rustCode.split('\n').length,
         watLines: wat.split('\n').length,
@@ -68,14 +72,43 @@ export async function compileRustToWasm(rustCode: string): Promise<CompileResult
       }
     }
   } catch (e) {
-    return {
-      success: false,
-      error: (e as Error).message,
-      stats: {
-        rustLines: rustCode.split('\n').length,
-        watLines: 0,
-        wasmBytes: 0,
-        compileTime: performance.now() - startTime
+    console.warn('[Compiler] rustToWAT failed, falling back to Playground:', (e as Error).message)
+    
+    try {
+      const { executeWithPlayground } = await import('./rustPlayground')
+      
+      console.log('[Compiler] Step 1: Compiling with Rust Playground...')
+      const result = await executeWithPlayground(rustCode, {
+        channel: 'stable',
+        edition: '2021',
+        mode: 'debug'
+      })
+      
+      const compileTime = performance.now() - startTime
+      
+      return {
+        success: result.success,
+        method: 'playground',
+        stdout: result.stdout,
+        stderr: result.stderr,
+        error: result.success ? undefined : result.stderr,
+        stats: {
+          rustLines: rustCode.split('\n').length,
+          watLines: 0,
+          wasmBytes: 0,
+          compileTime
+        }
+      }
+    } catch (playgroundError) {
+      return {
+        success: false,
+        error: `rustToWAT: ${(e as Error).message}\nPlayground: ${(playgroundError as Error).message}`,
+        stats: {
+          rustLines: rustCode.split('\n').length,
+          watLines: 0,
+          wasmBytes: 0,
+          compileTime: performance.now() - startTime
+        }
       }
     }
   }
