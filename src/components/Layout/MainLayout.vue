@@ -39,6 +39,9 @@
         <LogPanel ref="logPanelRef" />
       </div>
     </div>
+    <div class="terminal-container">
+      <Terminal ref="terminalRef" @execute="handleTerminalExecute" @log="handleTerminalLog" />
+    </div>
   </div>
 </template>
 
@@ -48,6 +51,7 @@ import Toolbar from '../Panel/Toolbar.vue'
 import FileExplorer from '../Panel/FileExplorer.vue'
 import MonacoEditor from '../Editor/MonacoEditor.vue'
 import LogPanel from '../Panel/LogPanel.vue'
+import Terminal from '../Panel/Terminal.vue'
 import { useProjectManager } from '@/utils/fileManager'
 import { initRustInterpreter, interpretRustCode, formatRustCode } from '@/utils/rustInterpreter'
 import { loadRustAnalyzer, typeCheck, isRustAnalyzerLoaded } from '@/utils/rustAnalyzer'
@@ -60,6 +64,7 @@ import { executeWithPlayground, formatPlaygroundOutput } from '@/utils/rustPlayg
 
 const editorRef = ref<InstanceType<typeof MonacoEditor>>()
 const logPanelRef = ref<InstanceType<typeof LogPanel>>()
+const terminalRef = ref<InstanceType<typeof Terminal>>()
 
 const { projectFiles, activeFile, setActiveFile, loadProject, addFile, removeFile, renameActiveFile, saveFile, loadFile, deleteFile, downloadFile, downloadWasm } = useProjectManager()
 
@@ -449,6 +454,35 @@ const handleCodeChange = (code: string) => {
   currentCode.value = code
 }
 
+const handleTerminalExecute = (command: string, args: string[]) => {
+  if (command === 'cargo new') {
+    const projectName = args[0]
+    if (projectName) {
+      addFile(`${projectName}/Cargo.toml`, `[package]
+name = "${projectName}"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+`)
+      addFile(`${projectName}/src/main.rs`, `fn main() {
+    println!("Hello, world!");
+}
+`)
+      setActiveFile(`${projectName}/src/main.rs`)
+      currentCode.value = `fn main() {
+    println!("Hello, world!");
+}
+`
+    }
+  }
+}
+
+const handleTerminalLog = (level: string, message: string) => {
+  const logLevel = level as 'info' | 'error' | 'warn'
+  logPanelRef.value?.addLog(logLevel, message)
+}
+
 onMounted(async () => {
   const buildTime = new Date().toLocaleString('zh-CN')
   logPanelRef.value?.addLog('info', `构建时间: ${buildTime}`)
@@ -503,7 +537,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .main-layout {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   height: 100vh;
   background-color: #1e1e1e;
 }
@@ -538,5 +572,11 @@ onBeforeUnmount(() => {
   background-color: #1e1e1e;
   border-left: 1px solid #3c3c3c;
   overflow: hidden;
+}
+
+.terminal-container {
+  grid-row: 3;
+  height: 200px;
+  border-top: 2px solid #3c3c3c;
 }
 </style>
