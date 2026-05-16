@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceFile {
     text: String,
     tree: SyntaxNode,
@@ -23,7 +24,7 @@ impl SourceFile {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyntaxNode {
     kind: SyntaxKind,
     children: Vec<SyntaxNode>,
@@ -137,7 +138,7 @@ pub enum SyntaxKind {
     EOF,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TextRange {
     pub start: TextSize,
     pub end: TextSize,
@@ -153,7 +154,7 @@ impl TextRange {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TextSize(pub u32);
 
 fn parse_text(text: &str) -> SyntaxNode {

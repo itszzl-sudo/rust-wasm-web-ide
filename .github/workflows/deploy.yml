@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Install wasm-bindgen-cli
+        run: cargo install wasm-bindgen-cli
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build rust-analyzer WASM
+        run: |
+          cd rust-analyzer-wasm
+          cargo build --target wasm32-unknown-unknown --release
+          wasm-bindgen target/wasm32-unknown-unknown/release/rust_analyzer_wasm.wasm \
+            --out-dir ../public/type-checker \
+            --target web
+      
+      - name: Build Clippy WASM
+        run: |
+          cd clippy-wasm
+          cargo build --target wasm32-unknown-unknown --release
+          wasm-bindgen target/wasm32-unknown-unknown/release/clippy_wasm.wasm \
+            --out-dir ../public/clippy \
+            --target web
+      
+      - name: Build for GitHub Pages
+        run: npm run build:github
+      
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-github
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

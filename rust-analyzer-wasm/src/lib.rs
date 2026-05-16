@@ -159,8 +159,8 @@ impl RustAnalyzer {
     
     #[wasm_bindgen]
     pub fn find_references(&self, code: &str, line: u32, column: u32) -> JsValue {
-        let arr = Vec::<JsValue>::new();
-        serde_wasm_bindgen::to_value(&arr).unwrap()
+        let empty_refs: Vec<()> = Vec::new();
+        serde_wasm_bindgen::to_value(&empty_refs).unwrap()
     }
 }
 

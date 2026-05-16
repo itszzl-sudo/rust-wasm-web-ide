@@ -54,20 +54,27 @@ export async function loadRustAnalyzer(): Promise<void> {
 
   loadPromise = (async () => {
     try {
-      console.log('[TypeChecker] Loading type checker Wasm...')
+      console.log('[RustAnalyzer] Loading rust-analyzer WASM...')
       const startTime = performance.now()
       
       const base = window.location.hostname.includes('github.io') ? '/rust-wasm-web-ide' : ''
-      const module = await import(/* @vite-ignore */ `${base}/type-checker/rust_type_checker.js`)
-      await module.default()
-      typeCheckerModule = module
+      
+      try {
+        const module = await import(/* @vite-ignore */ `${base}/type-checker/rust_analyzer_wasm.js`)
+        await module.default()
+        typeCheckerModule = module
+        console.log('[RustAnalyzer] Using custom WASM')
+      } catch (wasmError) {
+        console.log('[RustAnalyzer] Custom WASM not available, using fallback')
+      }
       
       const loadTime = performance.now() - startTime
-      console.log(`[TypeChecker] Loaded in ${(loadTime / 1000).toFixed(2)}s`)
+      console.log(`[RustAnalyzer] Loaded in ${(loadTime / 1000).toFixed(2)}s`)
       isLoaded = true
     } catch (e) {
-      console.error('[TypeChecker] Failed to load:', e)
-      throw e
+      console.error('[RustAnalyzer] Failed to load:', e)
+      console.log('[RustAnalyzer] Using TypeScript fallback')
+      isLoaded = true
     }
   })()
 
@@ -79,59 +86,76 @@ export function isRustAnalyzerLoaded(): boolean {
 }
 
 export async function typeCheck(code: string): Promise<TypeCheckResult> {
-  if (!typeCheckerModule) {
+  if (!isLoaded) {
     await loadRustAnalyzer()
   }
 
-  if (!typeCheckerModule) {
-    return {
-      diagnostics: [],
-      errors: 0,
-      warnings: 0
+  // Try WASM first
+  if (typeCheckerModule) {
+    try {
+      const result = typeCheckerModule.check_types ? 
+        await typeCheckerModule.check_types(code) :
+        typeCheckerModule.check ? 
+        typeCheckerModule.check(code) : null
+      
+      if (result) {
+        const diagnostics: Diagnostic[] = []
+        
+        if (Array.isArray(result)) {
+          result.forEach((d: any) => {
+            diagnostics.push({
+              severity: d.severity || 'warning',
+              message: d.message,
+              range: {
+                start: { line: (d.line || 1) - 1, character: d.column || 0 },
+                end: { line: (d.end_line || d.line || 1) - 1, character: d.end_column || 0 }
+              }
+            })
+          })
+        }
+        
+        return {
+          diagnostics,
+          errors: diagnostics.filter(d => d.severity === 'error').length,
+          warnings: diagnostics.filter(d => d.severity === 'warning').length,
+        }
+      }
+    } catch (e) {
+      console.error('[RustAnalyzer] WASM check failed:', e)
     }
   }
-
-  try {
-    const result = await typeCheckerModule.check_types(code)
-    const diagnostics: Diagnostic[] = result.diagnostics || []
-    return {
-      diagnostics,
-      errors: diagnostics.filter((d: Diagnostic) => d.severity === 'error').length,
-      warnings: diagnostics.filter((d: Diagnostic) => d.severity === 'warning').length,
-    }
-  } catch (e) {
-    console.error('[TypeChecker] Type check failed:', e)
-    return {
-      diagnostics: [{
-        severity: 'error',
-        message: `Type check failed: ${(e as Error).message}`,
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
-      }],
-      errors: 1,
-      warnings: 0
-    }
-  }
+  
+  // Fallback to TypeScript
+  return fallbackChecker.check(code)
 }
 
 export async function getCompletions(
   code: string,
   position: Position
 ): Promise<CompletionItem[]> {
-  if (!typeCheckerModule) {
+  if (!isLoaded) {
     await loadRustAnalyzer()
   }
 
-  if (!typeCheckerModule) {
-    return []
+  // Try WASM first
+  if (typeCheckerModule && typeCheckerModule.get_completions) {
+    try {
+      const result = await typeCheckerModule.get_completions(code, position.line, position.character)
+      if (Array.isArray(result)) {
+        return result.map((item: any) => ({
+          label: item.label,
+          kind: item.kind || 'variable',
+          insertText: item.insertText || item.label,
+          detail: item.detail
+        }))
+      }
+    } catch (e) {
+      console.error('[RustAnalyzer] WASM completions failed:', e)
+    }
   }
-
-  try {
-    const result = await typeCheckerModule.get_completions(code, position.line, position.character)
-    return result || []
-  } catch (e) {
-    console.error('[TypeChecker] Completion failed:', e)
-    return []
-  }
+  
+  // Fallback
+  return fallbackChecker.complete(code, position)
 }
 
 export async function getHoverInfo(

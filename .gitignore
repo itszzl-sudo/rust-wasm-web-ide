@@ -8,3 +8,9 @@ target/
 .env
 .env.local
 rust-interpreter/pkg/
+docs-github/
+docs-cloudflare/
+public/type-checker/
+public/clippy/
+*.wasm
+*.wasm.d.ts

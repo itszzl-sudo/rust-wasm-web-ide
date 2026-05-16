@@ -389,6 +389,7 @@ impl ClippyChecker {
                 let match_block: Vec<&str> = lines.iter().skip(i).take(20).copied().collect();
                 let bodies: Vec<&str> = match_block.iter()
                     .filter(|l| l.contains("=>"))
+                    .copied()
                     .collect();
                 
                 for j in 0..bodies.len().saturating_sub(1) {
@@ -445,7 +446,7 @@ impl ClippyChecker {
     // 22. inefficient_to_string
     fn check_inefficient_to_string(&mut self, code: &str) {
         for (i, line) in code.lines().enumerate() {
-            if line.contains("\"").and_then(|_| line.find(".to_string()")) != None {
+            if line.contains("\"") && line.contains(".to_string()") {
                 self.warnings.push(LintWarning {
                     name: "inefficient_to_string".to_string(),
                     message: "calling `to_string()` on a string literal".to_string(),
