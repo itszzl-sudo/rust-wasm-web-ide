@@ -77,7 +77,7 @@ const getFileName = (filename: string): string => {
   height: 100%;
   min-width: 120px;
   max-width: 200px;
-  background-color: #2d2d2d;
+  background-color: #1e1e1e;
   border-right: 1px solid #3c3c3c;
   cursor: pointer;
   transition: background-color 0.15s;
@@ -89,7 +89,7 @@ const getFileName = (filename: string): string => {
 }
 
 .tab.active {
-  background-color: #1e1e1e;
+  background-color: #2d2d2d;
 }
 
 .tab.active::after {
