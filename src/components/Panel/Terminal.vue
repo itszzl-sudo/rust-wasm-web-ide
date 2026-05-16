@@ -25,8 +25,6 @@ const rustcVersion = 'rustc 1.75.0 (82e4f1f5c 2023-12-01)'
 
 const initTerminal = async () => {
   const { Terminal } = await import('@xterm/xterm')
-  const { FitAddon } = await import('@xterm/addon-fit')
-  const { WebLinksAddon } = await import('@xterm/addon-web-links')
   
   const term = new Terminal({
     fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
@@ -60,13 +58,21 @@ const initTerminal = async () => {
     allowProposedApi: true
   })
 
-  fitAddon = new FitAddon()
-  const linksAddon = new WebLinksAddon()
-  
-  term.loadAddon(fitAddon)
-  term.loadAddon(linksAddon)
   term.open(terminalContainer.value!)
-  fitAddon.fit()
+  
+  const fitTerminal = () => {
+    if (!term.element || !term.element.parentElement) return
+    const parent = term.element.parentElement
+    const width = parent.clientWidth
+    const height = parent.clientHeight
+    const cols = Math.floor(width / 9)
+    const rows = Math.floor(height / 19)
+    if (cols > 0 && rows > 0) {
+      term.resize(cols, rows)
+    }
+  }
+  
+  fitTerminal()
 
   term.writeln('\x1b[1;36mRust WASM Web IDE Terminal v0.1.0\x1b[0m')
   term.writeln('\x1b[90m支持命令: cargo new/build/run/check/test/clippy/fmt/add/doc\x1b[0m')
@@ -78,11 +84,10 @@ const initTerminal = async () => {
     handleInput(term, data)
   })
 
-  window.addEventListener('resize', () => {
-    fitAddon?.fit()
-  })
+  window.addEventListener('resize', fitTerminal)
 
   terminal = term
+  fitAddon = { fit: fitTerminal }
 }
 
 const writePrompt = (term: any) => {
