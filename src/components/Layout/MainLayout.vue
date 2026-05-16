@@ -480,7 +480,7 @@ const handleFileSelect = (filename: string) => {
   if (activeFile.value) {
     saveFile(activeFile.value, currentCode.value)
   }
-  setActiveFile(filename)
+  openTab(filename)
   currentCode.value = loadFile(filename) || ''
 }
 
@@ -503,7 +503,7 @@ edition = "2021"
     println!("Hello, world!");
 }
 `)
-      setActiveFile(`${projectName}/src/main.rs`)
+      openTab(`${projectName}/src/main.rs`)
       currentCode.value = `fn main() {
     println!("Hello, world!");
 }
